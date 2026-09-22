@@ -1,0 +1,19 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+.DS_Store
+src-tauri/target/
+
+# build artefacts
+*.tsbuildinfo
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# local editor/agent settings
+.claude/

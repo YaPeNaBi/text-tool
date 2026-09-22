@@ -1,0 +1,329 @@
+:root {
+  --bg: #0f1115;
+  --panel: #161a21;
+  --border: #242a34;
+  --text: #dfe4ec;
+  --muted: #8b95a5;
+  --accent: #58a6ff;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+
+.app {
+  display: grid;
+  /* toolbar · ribbon · canvas · status. The canvas is the only row that grows;
+     giving `1fr` to anything else hands it the whole window and leaves the
+     document a sliver. */
+  grid-template-rows: auto auto 1fr auto;
+  /* Pinned to the viewport. A grid column defaults to max-content, so a toolbar
+     one button too wide silently makes the whole layout wider than the window
+     and slides the canvas out from under the pointer — which reads as every
+     click landing on the wrong cell, and looks nothing like a CSS problem. */
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+}
+
+/* ---- toolbar ---- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  /* Fixed height, whatever it is asked to hold. A notice that grows the
+     toolbar moves the canvas down under the pointer, and the document appears
+     to jump — which is worse than the message is useful. */
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.brand {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.toolbar .group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar .group.right {
+  margin-left: auto;
+}
+
+.toolbar label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+button,
+select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  white-space: nowrap;
+  background: #1d222b;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+select:hover {
+  border-color: #333c4a;
+  background: #222834;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.active {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.14);
+  color: #cfe4ff;
+}
+
+.hint {
+  font-size: 10px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.notice {
+  color: var(--accent);
+  font-size: 12px;
+  margin-right: 4px;
+  /* Long messages are clipped rather than allowed to push the row around. */
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toolbar label.check input {
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+}
+
+button.active .hint {
+  color: #cfe4ff;
+  border-color: rgba(88, 166, 255, 0.5);
+}
+
+/* ---- canvas ---- */
+
+.canvas-wrap {
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.canvas-wrap canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* ---- actions menu on the selection ---- */
+
+.shape-menu {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+}
+
+/* Anchored by its bottom edge, so its height never has to be measured. */
+.shape-menu.above {
+  transform: translateY(-100%);
+}
+
+.shape-menu button {
+  padding: 4px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Where the arrow keys are. Same weight as a focus ring, because that is what
+   it is -- the menu is driven from the canvas, so no button ever holds focus. */
+.shape-menu button.here {
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
+}
+
+/* ---- ribbon ----
+   The current tool's own controls, under the row that picked it. Fixed height,
+   for the reason the toolbar is: a band that resizes when the tool changes
+   moves the canvas down under the pointer, and the document appears to jump. */
+
+.ribbon {
+  display: flex;
+  align-items: stretch;
+  height: 92px;
+  padding: 0 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ribbon-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  /* Never shrink. A squeezed group overlaps its neighbour instead of being
+     clipped, which is illegible rather than merely cut off. */
+  flex: none;
+  padding: 6px 9px 4px;
+  border-right: 1px solid var(--border);
+}
+
+.ribbon-group:last-child {
+  border-right: 0;
+}
+
+/* Three rows deep, filling downward then starting a new column — Word's own
+   arrangement for small controls. Every row of depth is a third off the width,
+   which is what keeps six groups inside a window rather than four. */
+.ribbon-items {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 2px 12px;
+  flex: 1;
+}
+
+.ribbon-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.ribbon-item .keys {
+  display: flex;
+  gap: 3px;
+}
+
+.ribbon-item .what {
+  color: var(--muted);
+}
+
+.ribbon kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: #1d222b;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* A value the editor is actually holding, not a key you could press. */
+.ribbon-state {
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.ribbon-caption {
+  padding-top: 4px;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- status bar ---- */
+
+.statusbar {
+  display: flex;
+  gap: 18px;
+  padding: 5px 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+}
+
+.statusbar .right {
+  margin-left: auto;
+}
+
+/* Each opened group adds a row beneath the last, so the whole path stays on
+   screen at once rather than the shape being covered by a sideways cascade. */
+.shape-menu {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.shape-menu-row {
+  display: flex;
+  gap: 2px;
+}
+
+.shape-menu-row + .shape-menu-row {
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 1px solid var(--border);
+}
+
+.shape-menu .more {
+  margin-left: 5px;
+  opacity: 0.55;
+  font-size: 10px;
+}
