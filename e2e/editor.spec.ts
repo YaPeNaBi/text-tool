@@ -1643,7 +1643,7 @@ test.describe('select is a mode, and does not write (B-KEY-21)', () => {
   });
 });
 
-test.describe('hjkl walks the grid in select (B-KEY-22)', () => {
+test.describe('hjkl walks the grid (B-KEY-22)', () => {
   test('j and l carry the keyboard down and right', async ({ page }) => {
     const ed = new Editor(page);
     await ed.goto();
@@ -1709,7 +1709,7 @@ test.describe('hjkl walks the grid in select (B-KEY-22)', () => {
     expect((await ed.text()).split('\n')[0]).toBe('┌───┐  ┌───┐');
   });
 
-  test('but not under another mode, where a letter is inert', async ({ page }) => {
+  test('and they carry the cursor under the box tool as well (B-KEY-22a)', async ({ page }) => {
     const ed = new Editor(page);
     await ed.goto();
     await ed.tool('Select');
@@ -1718,16 +1718,94 @@ test.describe('hjkl walks the grid in select (B-KEY-22)', () => {
     await ed.mark('a'); // keyboard at (1,0)
 
     await ed.tool('Box');
-    await ed.press('j'); // nothing: hjkl is select's
+    await ed.press('j'); // the walk carries into the drawing modes
     await ed.press('l');
-    await ed.press('Space');
+    await ed.press('Space'); // so the draft starts at (2,1), not (1,0)
     for (let i = 0; i < 3; i++) await ed.press('ArrowRight');
     await ed.press('ArrowDown');
     await ed.press('Enter');
 
-    // The box was drafted from (1,0), where the keyboard already was, not from
-    // (2,1) — so it starts flush against the 'a'.
-    expect((await ed.text()).split('\n')[0]).toBe('a┌──┐');
+    expect(await ed.text()).toBe(['a', '  ┌──┐', '  └──┘'].join('\n'));
+  });
+
+  test('and size the box being drafted, exactly as the arrows do', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Box');
+    await ed.click(1, 1);
+    await ed.canvas.hover();
+    await page.keyboard.press('Space');
+    for (let i = 0; i < 4; i++) await ed.press('l');
+    for (let i = 0; i < 2; i++) await ed.press('j');
+    expect(await ed.cellCount()).toBe(0); // still only a preview
+
+    await ed.press('Enter');
+    // The very shape the arrow-key version of this test draws.
+    expect(await ed.text()).toBe(['┌───┐', '│   │', '└───┘'].join('\n'));
+  });
+
+  test('shift and hjkl draw a box in one gesture, like shift and the arrows', async ({
+    page,
+  }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Box');
+    await ed.click(1, 1);
+    await ed.canvas.hover();
+
+    await page.keyboard.down('Shift');
+    for (let i = 0; i < 4; i++) await ed.press('l');
+    for (let i = 0; i < 2; i++) await ed.press('j');
+    expect(await ed.cellCount()).toBe(0); // still only a preview
+
+    await page.keyboard.up('Shift'); // the release is the commit (B-DRAW-15)
+    expect(await ed.text()).toBe(['┌───┐', '│   │', '└───┘'].join('\n'));
+  });
+
+  test('a circle is sized by them too', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Circle');
+    await ed.click(0, 0);
+    await ed.canvas.hover();
+    await page.keyboard.press('Space');
+    for (let i = 0; i < 4; i++) await ed.press('l');
+    for (let i = 0; i < 4; i++) await ed.press('j');
+    await ed.press('Enter');
+
+    expect(await ed.text()).toBe([' ┌─┐', '┌┘ └┐', '│   │', '└┐ ┌┘', ' └─┘'].join('\n'));
+  });
+
+  test('and they aim a line, corner by corner', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Line');
+    await ed.hover(20, 10); // the pointer parks far away and stays there
+
+    await page.keyboard.press('Space');
+    for (let i = 0; i < 4; i++) await ed.press('l');
+    await page.keyboard.press('Space'); // a corner
+    for (let i = 0; i < 3; i++) await ed.press('j');
+    await ed.press('Enter');
+
+    expect(await ed.text()).toBe(['────┐', '    │', '    │', '    │'].join('\n'));
+  });
+
+  test('but a letter is a letter under text, where it writes', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+    await ed.tool('Select');
+
+    await ed.click(0, 0);
+    await ed.press('t');
+    await ed.type('hjkl');
+
+    // The one mode the walk stays out of: these are four characters.
+    expect(await ed.text()).toBe('hjkl');
   });
 });
 

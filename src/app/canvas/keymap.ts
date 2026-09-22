@@ -49,7 +49,7 @@ import {
   saveDocument,
   useEditor,
 } from '../state/store.ts';
-import { toolForKey, toolForMode } from '../tools.ts';
+import { toolForKey, toolForMode, type ToolId } from '../tools.ts';
 import type { Cell } from '../../core/geom/cell.ts';
 
 /**
@@ -93,7 +93,7 @@ const ARROWS: Record<string, readonly [number, number]> = {
 };
 
 /**
- * The same four directions under the home row, for select only (B-KEY-22).
+ * The same four directions under the home row (B-KEY-22).
  *
  * `hjkl` is not a shortcut for the arrows so much as the reason a hand can
  * stay where the mode letters are: `c`, `b`, `s` and `t` are all within reach
@@ -101,10 +101,10 @@ const ARROWS: Record<string, readonly [number, number]> = {
  * would have been modal in name only.
  *
  * `Shift` and `Alt` mean on these exactly what they mean on the arrows — sweep
- * and nudge — because they are the same key twice, not a second scheme.
- * `Ctrl` is the exception and stays on the arrows alone: `Ctrl`+`L` is the
- * address bar and `Ctrl`+`J` the downloads pane, and a jump that silently does
- * not happen is worse than one key to reach for.
+ * and nudge, size a box and stride — because they are the same key twice, not
+ * a second scheme. `Ctrl` is the exception and stays on the arrows alone:
+ * `Ctrl`+`L` is the address bar and `Ctrl`+`J` the downloads pane, and a jump
+ * that silently does not happen is worse than one key to reach for.
  */
 const VIM: Record<string, readonly [number, number]> = {
   h: [-1, 0],
@@ -112,6 +112,38 @@ const VIM: Record<string, readonly [number, number]> = {
   k: [0, -1],
   j: [0, 1],
 };
+
+/**
+ * The modes `hjkl` walks in: select, and the four the keyboard can draw in.
+ *
+ * Walking to a cell and walking a shape's free corner out from it are the same
+ * gesture — the cursor is the thing that moves either way (B-UI-10) — so the
+ * hand that reached `b` on the home row would have had to leave it at the very
+ * next keystroke to size the box it just asked for. That is the failure
+ * B-KEY-22 was written against, one mode further in.
+ *
+ * Not text, where a letter is a letter and `h` must write an `h`. Not the
+ * eraser or freehand either: those have no keyboard gesture at all — `Space`
+ * draws nothing in them — so the cursor there is not on its way anywhere, and
+ * a binding that only *looks* like the others is worse than none.
+ */
+const VIM_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
+  'select',
+  'box',
+  'circle',
+  'line',
+  'arrow',
+]);
+
+/**
+ * Which way a key goes: the arrows anywhere, `hjkl` where the letters are free.
+ *
+ * One function rather than two lookups at each call site, so the two spellings
+ * cannot drift into meaning different things under one modifier.
+ */
+function directionOf(key: string, tool: ToolId): readonly [number, number] | undefined {
+  return ARROWS[key] ?? (VIM_TOOLS.has(tool) ? VIM[key.toLowerCase()] : undefined);
+}
 
 /**
  * Listen for the lifetime of the canvas; hand back the teardown.
@@ -456,18 +488,26 @@ export function installKeyboard(cancelGesture: () => void): () => void {
     // free corner; with a chain running it aims the next segment; on its own
     // it is just where the keyboard is.
     //
+    // `hjkl` says all of that too, under the drawing modes (B-KEY-22): the
+    // point of the home row is that `b` and the box it draws are one gesture,
+    // and a step that stopped working the moment the mode changed would have
+    // left the hand reaching for the arrows anyway. Text is the exception
+    // `VIM_TOOLS` names — there a letter is a letter.
+    //
     // Alt strides here on the same terms as everywhere else (B-KEY-19). A
     // drawing tool never holds a selection — `setTool` drops it — so there is
     // nothing to nudge by construction and the stride is all Alt can mean:
     // five cells of cursor, or five cells of the corner being dragged.
-    if (ARROWS[ev.key] !== undefined && store.tool !== 'select') {
+    const drawStep = store.tool === 'select' ? undefined : directionOf(ev.key, store.tool);
+    if (drawStep !== undefined) {
       ev.preventDefault();
-      const [dx, dy] = ARROWS[ev.key] as readonly [number, number];
+      const [dx, dy] = drawStep;
       const [sx, sy] = ev.altKey ? strideBy(dx, dy) : [dx, dy];
 
-      // Shift and an arrow draws a box in **one** gesture: the first press pins
-      // the corner the cursor is standing on, the rest stretch it, and letting
-      // go of Shift is the release (B-DRAW-15).
+      // Shift and an arrow — or Shift and `hjkl`, the same key twice — draws a
+      // box in **one** gesture: the first press pins the corner the cursor is
+      // standing on, the rest stretch it, and letting go of Shift is the
+      // release (B-DRAW-15).
       //
       // Space and Enter still do the same job, and neither replaces the other.
       // That pair is a gesture you decide to start; this one you simply
@@ -508,11 +548,13 @@ export function installKeyboard(cancelGesture: () => void): () => void {
       }
     }
 
-    // Arrows, and `hjkl` for the same four directions under select (B-KEY-22).
-    // Taken together rather than as two branches, because every modifier below
-    // has to mean the same thing on both — they are one key with two spellings.
-    const dir =
-      ARROWS[ev.key] ?? (store.tool === 'select' ? VIM[ev.key.toLowerCase()] : undefined);
+    // Arrows, and `hjkl` for the same four directions (B-KEY-22). Taken
+    // together rather than as two branches, because every modifier below has
+    // to mean the same thing on both — they are one key with two spellings.
+    //
+    // Only select reaches here: the drawing modes were answered above, and the
+    // rest have no `hjkl` at all.
+    const dir = directionOf(ev.key, store.tool);
 
     // Four things a direction can mean in select mode, and the modifier says
     // which:

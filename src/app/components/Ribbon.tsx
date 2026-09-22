@@ -175,6 +175,10 @@ function groupsFor(tool: ToolId, live: Live): readonly Group[] {
       }
       draw.push(
         { keys: ['←→↑↓'], label: 'Size it' },
+        // The home row reaches into the drawing modes too (B-KEY-22), so it is
+        // listed where it works rather than only under select — a key that is
+        // only documented in the mode you had to leave is one nobody finds.
+        { keys: ['hjkl'], label: 'Size it' },
         { keys: ['Enter'], label: 'Commit' },
         { keys: ['Esc'], label: 'Abandon · then back to select' },
         stride,
@@ -198,6 +202,7 @@ function groupsFor(tool: ToolId, live: Live): readonly Group[] {
             { keys: [], label: 'Click corner after corner' },
             { keys: ['Space'], label: 'Or drop at the cursor' },
             { keys: ['←→↑↓'], label: 'Aim the next corner' },
+            { keys: ['hjkl'], label: 'Aim the next corner' },
             { keys: ['Enter'], label: 'Finish, through the cursor' },
             { keys: ['Esc'], label: 'Abandon · then back to select' },
             stride,

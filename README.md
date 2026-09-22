@@ -363,7 +363,7 @@ write. A bare letter leaves it, and `Escape` — or two taps of `Ctrl` — comes
 |---|---|
 | `b` · `t` · `c` · `s` | from select: box · text · **c**onnect (line) · circle |
 | `Esc` · `Ctrl` `Ctrl` | back to select. One press undoes one thing, so a half-drawn line goes first and the mode second |
-| `h` `j` `k` `l` | walk left, down, up, right — the arrow keys do the same, and every modifier means the same on both |
+| `h` `j` `k` `l` | walk left, down, up, right — in select and in the drawing modes, where they size the shape the keyboard is drawing. The arrow keys do the same, and every modifier means the same on both |
 | `Ctrl`+`1`…`7` | select · box · circle · line · arrow · text · eraser, from any mode (`Ctrl`+`B` is the box too) |
 | `Ctrl`+`Q` | freehand — drag, and every cell the pointer crosses is drawn |
 | middle-drag | pan |
@@ -371,8 +371,8 @@ write. A bare letter leaves it, and `Escape` — or two taps of `Ctrl` — comes
 | `Ctrl`+`0` / `Ctrl`+`Home` | reset zoom / back to the origin |
 | click, click, … then `Enter` / right-click | draw a line corner by corner |
 | `Space` | box/circle: start one at the cursor · line/arrow: drop a corner |
-| arrow keys, mid-line | aim the next corner — a line started with `Space` ignores the mouse |
-| `Shift`+arrow, in the box tool | draw a box in one gesture — let go of `Shift` to keep it |
+| arrow keys or `hjkl`, mid-line | aim the next corner — a line started with `Space` ignores the mouse |
+| `Shift`+arrow or `Shift`+`hjkl`, in the box tool | draw a box in one gesture — let go of `Shift` to keep it |
 | `Enter` | commit what the keyboard is drawing, through wherever the cursor has got to |
 | `t`, then type | writes at the keyboard cursor. Click a word first and `t` opens it at the character you clicked |
 | right-click a selection · `Ctrl`+`E` | actions: a box's columns and rows, a line's ends and style |

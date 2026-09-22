@@ -117,7 +117,7 @@ would become presence data.
 | **mode** | The active tool, seen from the keyboard. **Select** is the one you live in: it points, selects and navigates, and does not write. A bare letter leaves it — `b` box, `t` text, `c` connect, `s` circle — and `Escape` or two taps of `Ctrl` comes back. Under any other mode those letters mean nothing, which is the whole point: `b` means box *there*. |
 | **cursor** | Where the keyboard is. Always somewhere, in every mode. |
 | **caret** | The same position, drawn as a blinking bar because it is *for* typing. One position, two readings — never both at once, and the **mode** says which: a caret exists under `text` and nowhere else. |
-| **walk** | Moving the cursor a cell at a time. `hjkl` or the arrow keys, interchangeably, under select. |
+| **walk** | Moving the cursor a cell at a time. `hjkl` or the arrow keys, interchangeably, under select and under the four drawing modes — where the same step sizes the shape being drawn. Not under `text`, where `h` writes an `h`. |
 | **hover** | Where the pointer is. The cursor's equal for people holding a mouse. |
 | **sweep** | Extending a selection with `Shift`+arrow. The **anchor** is where it started; the run grows from there, so it can shrink again. |
 | **jump** | `Ctrl`+arrow: the spreadsheet move — ride a run to its end, or cross a gap to the next thing. Stops at junctions. |
