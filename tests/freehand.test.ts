@@ -20,16 +20,16 @@ describe('a stroke is the cells the pointer was in (B-DRAW-16)', () => {
     expect(strokeCells([at(0, 0), at(5, 0)]).map((c) => c.x)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
-  it('turns a diagonal into a staircase, the grid having no diagonals', () => {
+  it('walks a diagonal directly, one cell per step', () => {
     const walk = strokeCells([at(0, 0), at(2, 2)]);
 
-    // Every step touches the last: 4-connected, never a leap across a corner.
-    for (let i = 1; i < walk.length; i++) {
-      const a = walk[i - 1];
-      const b = walk[i];
-      if (a === undefined || b === undefined) throw new Error('gap');
-      expect(Math.abs(a.x - b.x) + Math.abs(a.y - b.y)).toBe(1);
-    }
+    expect(walk).toEqual([at(0, 0), at(1, 1), at(2, 2)]);
+  });
+
+  it('spends the diagonal first and finishes straight on the longer axis', () => {
+    const walk = strokeCells([at(0, 0), at(4, 2)]);
+
+    expect(walk).toEqual([at(0, 0), at(1, 1), at(2, 2), at(3, 2), at(4, 2)]);
   });
 
   it('standing still is not a step', () => {
@@ -63,6 +63,41 @@ describe('a stroke is the cells the pointer was in (B-DRAW-16)', () => {
   it('a stroke of one cell is a click, and draws nothing', () => {
     const grid = createGrid();
     expect(stampStroke(grid, [at(1, 1)], UNICODE).size).toBe(0);
+  });
+
+  it('draws a down-right diagonal as backslashes', () => {
+    const grid = createGrid();
+    applyDiff(grid, stampStroke(grid, [at(0, 0), at(3, 3)], UNICODE));
+
+    expect(toText(grid).split('\n')).toEqual(['\\', ' \\', '  \\', '   \\']);
+  });
+
+  it('draws an up-right diagonal as forward slashes', () => {
+    const grid = createGrid();
+    applyDiff(grid, stampStroke(grid, [at(0, 3), at(3, 0)], UNICODE));
+
+    expect(toText(grid).split('\n')).toEqual(['   /', '  /', ' /', '/']);
+  });
+
+  it('a diagonal is plain text: it does not merge with a box it is drawn across', () => {
+    const grid = createGrid();
+    applyDiff(grid, stampBox(grid, { x: 0, y: 0, w: 5, h: 5 }, UNICODE));
+    applyDiff(grid, stampStroke(grid, [at(1, 1), at(3, 3)], UNICODE));
+
+    expect(toText(grid).split('\n')).toEqual([
+      '┌───┐',
+      '│\\  │',
+      '│ \\ │',
+      '│  \\│',
+      '└───┘',
+    ]);
+  });
+
+  it('a corner turning from orthogonal into diagonal switches glyph cleanly', () => {
+    const grid = createGrid();
+    applyDiff(grid, stampStroke(grid, [at(0, 0), at(2, 0), at(4, 2)], UNICODE));
+
+    expect(toText(grid).split('\n')).toEqual(['──\\', '   \\', '    \\']);
   });
 });
 
