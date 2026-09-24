@@ -6,7 +6,7 @@
  * by recognition, never stored.
  */
 
-import { ck, type CellKey } from '../geom/cell.ts';
+import { ck, unck, type CellKey } from '../geom/cell.ts';
 import {
   DIRS,
   E,
@@ -135,6 +135,24 @@ export function neighbourMask(
     if (maskOf(grid, x + dx, y + dy) & opposite(d)) mask |= d;
   }
   return mask;
+}
+
+/**
+ * True when an outline is really *drawn* as that outline, not merely covered
+ * by characters that happen to sit in the right places: each cell must also
+ * connect along it. A `┘` cannot serve as the middle of a left edge, because
+ * it has no southward arm.
+ */
+export function outlineConnected(grid: Grid, outline: ReadonlySet<CellKey>): boolean {
+  for (const key of outline) {
+    const { x, y } = unck(key);
+    let required = 0;
+    for (const dir of DIRS) {
+      if (outline.has(ck(x + dir.dx, y + dir.dy))) required |= dir.d;
+    }
+    if ((maskOf(grid, x, y) & required) !== required) return false;
+  }
+  return true;
 }
 
 /** True when two adjacent cells both connect toward each other (B-CONN-03). */

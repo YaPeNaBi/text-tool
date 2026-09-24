@@ -40,12 +40,29 @@ export interface Charset {
   glyph: Record<number, string>;
   /** Arrowhead pointing in each direction. */
   arrow: Record<Dir, string>;
+  /**
+   * Where a freehand run turns into a diagonal (B-DRAW-16), keyed by the side
+   * the straight run arrives from plus the way the diagonal leaves: W|S, E|S,
+   * W|N or E|N. The bend carries the line from the middle of the cell edge to
+   * where the `/` or `\` starts, instead of leaving half a row's jump.
+   */
+  bend: Record<number, string>;
 }
+
+const ROUND_BEND: Record<number, string> = {
+  [S | W]: '╮',
+  [E | S]: '╭',
+  [N | W]: '╯',
+  [N | E]: '╰',
+};
 
 export const UNICODE: Charset = {
   id: 'unicode',
   label: 'Unicode',
   arrow: { [N]: '▲', [E]: '▶', [S]: '▼', [W]: '◀' },
+  // Rounded even here: a bend into a diagonal is a curve, and a square corner
+  // makes the diagonal look as if it leaves from a wall.
+  bend: ROUND_BEND,
   glyph: {
     0: '',
     [N]: '│',
@@ -70,6 +87,8 @@ export const ASCII: Charset = {
   id: 'ascii',
   label: 'ASCII',
   arrow: { [N]: '^', [E]: '>', [S]: 'v', [W]: '<' },
+  // The ASCII-art convention: `-.` bends down, `-'` bends up.
+  bend: { [S | W]: '.', [E | S]: '.', [N | W]: "'", [N | E]: "'" },
   glyph: {
     0: '',
     [N]: '|',
@@ -99,6 +118,7 @@ export const ROUNDED: Charset = {
   id: 'rounded',
   label: 'Rounded',
   arrow: { [N]: '▲', [E]: '▶', [S]: '▼', [W]: '◀' },
+  bend: ROUND_BEND,
   glyph: {
     ...UNICODE.glyph,
     [N | E]: '╰',
@@ -112,6 +132,8 @@ export const HEAVY: Charset = {
   id: 'heavy',
   label: 'Heavy',
   arrow: { [N]: '▲', [E]: '▶', [S]: '▼', [W]: '◀' },
+  // No heavy arcs exist, so heavy and double bend with their own corners.
+  bend: { [S | W]: '┓', [E | S]: '┏', [N | W]: '┛', [N | E]: '┗' },
   glyph: {
     0: '',
     [N]: '┃',
@@ -136,6 +158,7 @@ export const DOUBLE: Charset = {
   id: 'double',
   label: 'Double',
   arrow: { [N]: '▲', [E]: '▶', [S]: '▼', [W]: '◀' },
+  bend: { [S | W]: '╗', [E | S]: '╔', [N | W]: '╝', [N | E]: '╚' },
   glyph: {
     0: '',
     [N]: '║',

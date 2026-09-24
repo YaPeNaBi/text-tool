@@ -67,7 +67,7 @@ test.describe('drawing', () => {
     await ed.drag([0, 0], [4, 4]);
 
     expect(await ed.text()).toBe(
-      [' ┌─┐', '┌┘ └┐', '│   │', '└┐ ┌┘', ' └─┘'].join('\n'),
+      [' ╭─╮', '/   \\', '│   │', '\\   /', ' ╰─╯'].join('\n'),
     );
   });
 
@@ -1262,7 +1262,7 @@ test.describe('drawing from the keyboard', () => {
     await ed.press('Enter');
 
     expect(await ed.text()).toBe(
-      [' ┌─┐', '┌┘ └┐', '│   │', '└┐ ┌┘', ' └─┘'].join('\n'),
+      [' ╭─╮', '/   \\', '│   │', '\\   /', ' ╰─╯'].join('\n'),
     );
   });
 
@@ -1776,7 +1776,7 @@ test.describe('hjkl walks the grid (B-KEY-22)', () => {
     for (let i = 0; i < 4; i++) await ed.press('j');
     await ed.press('Enter');
 
-    expect(await ed.text()).toBe([' ┌─┐', '┌┘ └┐', '│   │', '└┐ ┌┘', ' └─┘'].join('\n'));
+    expect(await ed.text()).toBe([' ╭─╮', '/   \\', '│   │', '\\   /', ' ╰─╯'].join('\n'));
   });
 
   test('and they aim a line, corner by corner', async ({ page }) => {

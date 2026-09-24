@@ -47,6 +47,7 @@ import {
   type CellDiff,
   type Grid,
 } from '../grid/grid.ts';
+import { links } from '../grid/links.ts';
 import { findRoute } from './astar.ts';
 import { DEFAULT_COSTS, budgetFor, terrainFor, type Terrain } from './cost.ts';
 import { segmentize } from '../recognize/segmentize.ts';
@@ -93,17 +94,20 @@ function strandOutside(
   const out = new Set<CellKey>([ck(start.x, start.y)]);
   const queue: Cell[] = [start];
 
+  const visit = (next: Cell): void => {
+    const key = ck(next.x, next.y);
+    if (shape.has(key) || out.has(key)) return;
+    out.add(key);
+    queue.push(next);
+  };
+
   while (queue.length > 0) {
     const cell = queue.pop() as Cell;
     for (const dir of DIRS) {
-      const nx = cell.x + dir.dx;
-      const ny = cell.y + dir.dy;
-      const key = ck(nx, ny);
-      if (shape.has(key) || out.has(key)) continue;
-      if (!connected(grid, cell.x, cell.y, dir)) continue;
-      out.add(key);
-      queue.push({ x: nx, y: ny });
+      if (connected(grid, cell.x, cell.y, dir)) visit({ x: cell.x + dir.dx, y: cell.y + dir.dy });
     }
+    // A circle behind the connector is only whole through its links (B-CONN-08).
+    for (const next of links(grid, cell.x, cell.y)) visit(next);
   }
   return out;
 }
@@ -400,11 +404,17 @@ export function sideFacing(self: Cell, other: Cell): Dir {
  * attaches at the widest part of its curve rather than out in the empty corner
  * of the rectangle around it. Corners are avoided where there is any choice:
  * a line meeting a box exactly at its `┌` reads as a mistake.
+ *
+ * Given the grid, a circle's slashes are never chosen — a slash has no arm for
+ * the line to join, so the line would overwrite it — and a cell holding the
+ * ring together across a diagonal (a bend, B-CONN-08) only when nothing else
+ * faces that way.
  */
 export function anchorOn(
   shape: ReadonlySet<CellKey>,
   approach: Dir,
   toward: Cell,
+  grid?: Grid,
 ): Cell | null {
   const bounds = boundsOf(shape);
   if (bounds === null) return null;
@@ -423,10 +433,17 @@ export function anchorOn(
     if (cx < 0 || cy < 0) continue;
     if (shape.has(ck(cx, cy))) continue; // must sit outside the shape
 
+    const linkedTo = grid === undefined ? [] : links(grid, x, y);
+    if (grid !== undefined && linkedTo.length > 0 && maskOf(grid, x, y) === 0) continue;
+    const holdsDiagonal = linkedTo.some((c) => c.x !== x && c.y !== y);
+
     const atCorner =
       (x === bounds.x || x === right) && (y === bounds.y || y === bottom);
     const score =
-      Math.abs(cx - toward.x) + Math.abs(cy - toward.y) + (atCorner ? 1000 : 0);
+      Math.abs(cx - toward.x) +
+      Math.abs(cy - toward.y) +
+      (atCorner ? 1000 : 0) +
+      (holdsDiagonal ? 500 : 0);
 
     if (score < bestScore) {
       bestScore = score;
@@ -645,14 +662,14 @@ export function rerouteDiff(
     // have *ended up* rather than where they began (B-MAN-11f).
     const farCentre = c.freeShape === null ? c.free : centreOf(c.freeShape);
     const approach = sideFacing(movedCentre, farCentre);
-    const anchor = anchorOn(moved, approach, farCentre);
+    const anchor = anchorOn(moved, approach, farCentre, after);
     if (anchor === null || anchor.x < 0 || anchor.y < 0) continue;
 
     let free = c.free;
     let freeApproach = c.freeApproach;
     if (c.freeShape !== null) {
       freeApproach = sideFacing(farCentre, movedCentre);
-      free = anchorOn(c.freeShape, freeApproach, movedCentre) ?? c.free;
+      free = anchorOn(c.freeShape, freeApproach, movedCentre, after) ?? c.free;
       // Only an end that has a shape to join can join it; a loose end is left
       // exactly where it was.
       free = meetingPoint(free, freeApproach, c.headedAtFree);

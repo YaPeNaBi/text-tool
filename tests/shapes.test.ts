@@ -30,26 +30,50 @@ function drawn(w: number, h: number, cs = UNICODE): Grid {
 }
 
 describe('stampEllipse (B-DRAW-13)', () => {
-  it('draws a small circle as a staircase', () => {
+  it('draws a small circle with diagonal shoulders', () => {
     expect(toText(drawn(5, 5))).toBe(
-      [' ┌─┐', '┌┘ └┐', '│   │', '└┐ ┌┘', ' └─┘'].join('\n'),
+      [' ╭─╮', '/   \\', '│   │', '\\   /', ' ╰─╯'].join('\n'),
+    );
+  });
+
+  it('takes the shoulders one row at a time', () => {
+    expect(toText(drawn(9, 9))).toBe(
+      [
+        '  ╭───╮',
+        ' /     \\',
+        '/       \\',
+        '│       │',
+        '│       │',
+        '│       │',
+        '\\       /',
+        ' \\     /',
+        '  ╰───╯',
+      ].join('\n'),
     );
   });
 
   it('widens into an ellipse', () => {
     expect(toText(drawn(11, 5))).toBe(
       [
-        '  ┌─────┐',
-        '┌─┘     └─┐',
+        ' ╭───────╮',
+        '/         \\',
         '│         │',
-        '└─┐     ┌─┘',
-        '  └─────┘',
+        '\\         /',
+        ' ╰───────╯',
       ].join('\n'),
     );
   });
 
+  it('rounds the ends of a flat one instead of pointing them', () => {
+    expect(toText(drawn(9, 3))).toBe([' ╭─────╮', '│       │', ' ╰─────╯'].join('\n'));
+  });
+
   it('is a single connected ring, which is the whole point', () => {
-    for (const [w, h] of [[5, 5], [7, 5], [9, 7], [13, 9], [21, 13]] as const) {
+    const sizes = [
+      [4, 4], [5, 5], [7, 5], [9, 7], [13, 9], [15, 15], [21, 13],
+      [21, 3], [21, 5], [30, 7], [3, 9], [5, 11],
+    ] as const;
+    for (const [w, h] of sizes) {
       const grid = drawn(w, h);
       const cells = ellipseCells({ x: 0, y: 0, w, h });
       // Seeding anywhere on the ring must reach every other cell of it.
@@ -80,8 +104,11 @@ describe('stampEllipse (B-DRAW-13)', () => {
   });
 
   it('follows the active charset', () => {
-    expect(toText(drawn(5, 5, ROUNDED))).toBe(
-      [' ╭─╮', '╭╯ ╰╮', '│   │', '╰╮ ╭╯', ' ╰─╯'].join('\n'),
+    expect(toText(drawn(5, 5, HEAVY))).toBe(
+      [' ┏━┓', '/   \\', '┃   ┃', '\\   /', ' ┗━┛'].join('\n'),
+    );
+    expect(toText(drawn(5, 5, ASCII))).toBe(
+      [' .-.', '/   \\', '|   |', '\\   /', " '-'"].join('\n'),
     );
   });
 });
@@ -95,9 +122,36 @@ describe('recognizing an ellipse (B-REC-14)', () => {
     expect(found?.bounds).toEqual({ x: 0, y: 0, w: 9, h: 7 });
   });
 
+  it('recovers it from any cell, a slash as much as a side', () => {
+    const grid = drawn(9, 7);
+    for (const [x, y] of [[1, 1], [0, 2], [0, 3], [2, 0], [7, 5]] as const) {
+      expect(recognize(grid, x, y)?.kind, `${x},${y}`).toBe('ellipse');
+    }
+  });
+
+  it('recovers one drawn in ASCII, where the bends are only dots and ticks', () => {
+    const grid = drawn(9, 7, ASCII);
+    expect(recognize(grid, 4, 0)?.kind).toBe('ellipse');
+    expect(recognize(grid, 2, 0)?.kind).toBe('ellipse');
+  });
+
   it('recovers one it never drew, from pasted art', () => {
+    const grid = gridFrom([' .----.', '/      \\', '|      |', '\\      /', " '----'"].join('\n'));
+    expect(recognize(grid, 3, 0)?.kind).toBe('ellipse');
+  });
+
+  it('still recovers the staircase it used to draw, so old documents keep their circles', () => {
     const grid = gridFrom([' ┌─┐', '┌┘ └┐', '│   │', '└┐ ┌┘', ' └─┘'].join('\n'));
     expect(recognize(grid, 1, 0)?.kind).toBe('ellipse');
+  });
+
+  it('and resizing one of those lifts the staircase, not the ring it would draw today', () => {
+    const grid = gridFrom([' ┌─┐', '┌┘ └┐', '│   │', '└┐ ┌┘', ' └─┘'].join('\n'));
+    applyDiff(
+      grid,
+      resizeBoxDiff(grid, { x: 0, y: 0, w: 5, h: 5 }, { x: 0, y: 0, w: 5, h: 5 }, UNICODE, 'ellipse'),
+    );
+    expect(toText(grid)).toBe(toText(drawn(5, 5)));
   });
 
   it('does not call a rectangle an ellipse', () => {
@@ -112,7 +166,7 @@ describe('recognizing an ellipse (B-REC-14)', () => {
       grid,
       resizeBoxDiff(grid, { x: 0, y: 0, w: 9, h: 7 }, { x: 0, y: 0, w: 5, h: 5 }, UNICODE, 'ellipse'),
     );
-    expect(toText(grid)).toBe([' ┌─┐', '┌┘ └┐', '│   │', '└┐ ┌┘', ' └─┘'].join('\n'));
+    expect(toText(grid)).toBe([' ╭─╮', '/   \\', '│   │', '\\   /', ' ╰─╯'].join('\n'));
   });
 });
 

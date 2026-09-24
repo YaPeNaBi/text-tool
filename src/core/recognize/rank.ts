@@ -26,9 +26,9 @@
 
 import { boundsOf, ck, unck, type CellKey, type Rect } from '../geom/cell.ts';
 import { DIRS } from '../charset/charsets.ts';
-import { connected, maskOf, type Grid } from '../grid/grid.ts';
+import { connected, outlineConnected, type Grid } from '../grid/grid.ts';
 import { borderKeys } from '../stamp/box.ts';
-import { ellipseCells } from '../stamp/ellipse.ts';
+import { ringOnGrid } from '../stamp/ellipse.ts';
 import { trace } from './trace.ts';
 import { segmentize } from './segmentize.ts';
 import {
@@ -93,28 +93,6 @@ function nearest(values: Set<number>, pivot: number, n: number): number[] {
     .sort((p, q) => p - q);
 }
 
-/**
- * True when an outline is really *drawn* as that outline, not merely covered
- * by characters that happen to sit in the right places.
- *
- * Presence alone is far too generous. A circle overlapping a box leaves cells
- * at every position of some smaller rectangle, and answering a click with that
- * accident would be worse than answering with the whole blob. So each cell
- * must also *connect* along the outline: a `┘` cannot serve as the middle of a
- * left edge, because it has no southward arm.
- */
-function outlineConnected(grid: Grid, outline: ReadonlySet<CellKey>): boolean {
-  for (const key of outline) {
-    const { x, y } = unck(key);
-    let required = 0;
-    for (const dir of DIRS) {
-      if (outline.has(ck(x + dir.dx, y + dir.dy))) required |= dir.d;
-    }
-    if ((maskOf(grid, x, y) & required) !== required) return false;
-  }
-  return true;
-}
-
 /** The rectangle's border, if the component really draws it. */
 function borderOf(
   grid: Grid,
@@ -128,14 +106,15 @@ function borderOf(
   return outlineConnected(grid, border) ? border : null;
 }
 
-/** The ellipse ring for these bounds, if the component really draws it. */
+/**
+ * The ellipse ring for these bounds, if the component really draws it.
+ *
+ * Presence alone is far too generous — a circle overlapping a box leaves cells
+ * at every position of some smaller rectangle — so `ringOnGrid` also asks that
+ * the ring connect all the way round.
+ */
 function ringOf(grid: Grid, cells: ReadonlySet<CellKey>, r: Rect): Set<CellKey> | null {
-  const ring = ellipseCells(r);
-  if (ring.size === 0) return null;
-  for (const key of ring) {
-    if (!cells.has(key)) return null;
-  }
-  return outlineConnected(grid, ring) ? ring : null;
+  return ringOnGrid(grid, r, cells);
 }
 
 /**

@@ -18,7 +18,8 @@ import {
 } from '../geom/cell.ts';
 import { arrowDir } from '../charset/charsets.ts';
 import { maskOf, type Grid } from '../grid/grid.ts';
-import { ellipseCells } from '../stamp/ellipse.ts';
+import { links } from '../grid/links.ts';
+import { ellipseRings } from '../stamp/ellipse.ts';
 import { trace } from './trace.ts';
 import { segmentize, type RunGraph } from './segmentize.ts';
 
@@ -60,15 +61,17 @@ export function matchBox(cells: ReadonlySet<CellKey>, bounds: Rect): boolean {
  * Ellipse matcher (B-REC-14): the mirror of the box matcher. A component is an
  * ellipse when it is exactly the outline the ellipse stamper would draw for its
  * own bounding box — which is the cheapest possible way to keep the stamper and
- * the matcher honest about each other.
+ * the matcher honest about each other. The staircase ring the stamper used to
+ * draw still counts, so older documents keep their circles.
  */
 export function matchEllipse(cells: ReadonlySet<CellKey>, bounds: Rect): boolean {
-  const want = ellipseCells(bounds);
-  if (want.size === 0 || want.size !== cells.size) return false;
-  for (const key of want) {
-    if (!cells.has(key)) return false;
-  }
-  return true;
+  return ellipseRings(bounds).some((want) => {
+    if (want.size === 0 || want.size !== cells.size) return false;
+    for (const key of want) {
+      if (!cells.has(key)) return false;
+    }
+    return true;
+  });
 }
 
 /**
@@ -96,7 +99,7 @@ export function matchPath(grid: Grid, graph: RunGraph): 'line' | 'arrow' | null 
 function isTextCell(grid: Grid, x: number, y: number): boolean {
   const ch = grid.get(ck(x, y));
   if (ch === undefined || ch === ' ') return false;
-  return maskOf(grid, x, y) === 0;
+  return maskOf(grid, x, y) === 0 && links(grid, x, y).length === 0;
 }
 
 /**

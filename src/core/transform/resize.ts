@@ -11,7 +11,7 @@ import { ck } from '../geom/cell.ts';
 import type { Charset } from '../charset/charsets.ts';
 import { cloneWithout, type CellDiff, type Grid } from '../grid/grid.ts';
 import { MIN_BOX, borderKeys, stampBox } from '../stamp/box.ts';
-import { ellipseCells, stampEllipse } from '../stamp/ellipse.ts';
+import { drawnRing, stampEllipse } from '../stamp/ellipse.ts';
 
 /** Which stamper owns this outline. Adding a shape means adding a case here. */
 export type ResizeKind = 'box' | 'ellipse';
@@ -109,7 +109,7 @@ export function resizeBoxDiff(
   kind: ResizeKind = 'box',
 ): CellDiff {
   const diff: CellDiff = new Map();
-  const old = kind === 'ellipse' ? [...ellipseCells(from)] : borderKeys(from);
+  const old = kind === 'ellipse' ? [...drawnRing(grid, from)] : borderKeys(from);
   for (const key of old) diff.set(key, null);
 
   // Stamp against a grid that no longer holds the old outline, otherwise the

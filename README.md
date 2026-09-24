@@ -266,6 +266,13 @@ makes it impossible for the two to drift apart.
 If a new shape needs edits outside those two files plus its wiring, the abstraction
 is leaking, and that is worth stopping over.
 
+Giving the circle diagonal shoulders is the one time that has happened, and it was
+stopped over: a `/` has no arms, so the ring was no longer connected in the grid's
+own terms. The fix was to teach the grid a new word rather than to special-case the
+circle — **links** (B-CONN-08, `grid/links.ts`), the connections a diagonal makes —
+and then to follow links everywhere a component is traced. Freehand strokes got the
+same benefit for free.
+
 ---
 
 ## Sticky connectors

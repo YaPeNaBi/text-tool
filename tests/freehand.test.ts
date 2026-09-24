@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { UNICODE } from '../src/core/charset/charsets.ts';
+import { ASCII, UNICODE } from '../src/core/charset/charsets.ts';
 import { applyDiff, createGrid, maskOf, type Grid } from '../src/core/grid/grid.ts';
 import { toText } from '../src/core/io/text.ts';
 import { stampBox } from '../src/core/stamp/box.ts';
@@ -93,11 +93,39 @@ describe('a stroke is the cells the pointer was in (B-DRAW-16)', () => {
     ]);
   });
 
-  it('a corner turning from orthogonal into diagonal switches glyph cleanly', () => {
+  it('a line turning down into a diagonal bends instead of jumping', () => {
     const grid = createGrid();
     applyDiff(grid, stampStroke(grid, [at(0, 0), at(2, 0), at(4, 2)], UNICODE));
 
-    expect(toText(grid).split('\n')).toEqual(['──\\', '   \\', '    \\']);
+    expect(toText(grid).split('\n')).toEqual(['──╮', '   \\', '    \\']);
+  });
+
+  it('and turning up bends the other way, even off a corner', () => {
+    const grid = createGrid();
+    applyDiff(grid, stampStroke(grid, [at(0, 3), at(0, 2), at(1, 2), at(3, 0)], UNICODE));
+
+    expect(toText(grid).split('\n')).toEqual(['   /', '  /', '┌╯', '│']);
+  });
+
+  it('a diagonal landing on a line bends into it', () => {
+    const grid = createGrid();
+    applyDiff(grid, stampStroke(grid, [at(0, 0), at(2, 2), at(4, 2)], UNICODE));
+
+    expect(toText(grid).split('\n')).toEqual(['\\', ' \\', '  ╰──']);
+  });
+
+  it('a vertical run meets a diagonal without a bend: the slash is the smaller jump', () => {
+    const grid = createGrid();
+    applyDiff(grid, stampStroke(grid, [at(0, 0), at(0, 2), at(2, 4)], UNICODE));
+
+    expect(toText(grid).split('\n')).toEqual(['│', '│', '\\', ' \\', '  \\']);
+  });
+
+  it('ASCII bends with the classic dot and tick', () => {
+    const grid = createGrid();
+    applyDiff(grid, stampStroke(grid, [at(0, 0), at(2, 0), at(4, 2), at(6, 2)], ASCII));
+
+    expect(toText(grid).split('\n')).toEqual(['--.', '   \\', "    '--"]);
   });
 });
 
