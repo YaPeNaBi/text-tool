@@ -1094,6 +1094,59 @@ test.describe('tools live on Ctrl', () => {
     await expect(page.getByRole('button', { name: /^Select/ })).toHaveClass(/active/);
   });
 
+  test('jk comes back to select from the writing mode, writing neither letter (B-KEY-23)', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Text');
+    await ed.click(0, 0);
+    await ed.type('ab');
+    await ed.type('jk');
+
+    await expect(page.getByRole('button', { name: /^Select/ })).toHaveClass(/active/);
+    expect(await ed.text()).toBe('ab');
+  });
+
+  test('but a j followed by anything else is a letter, and so is one left on its own', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Text');
+    await ed.click(0, 0);
+    await ed.type('jaj');
+
+    // The first `j` is written the moment the `a` arrives; the last one once
+    // the window for a `k` has closed.
+    await expect.poll(() => ed.text()).toBe('jaj');
+    await expect(page.getByRole('button', { name: /^Text/ })).toHaveClass(/active/);
+  });
+
+  test('and a k that comes too late is only a k', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Text');
+    await ed.click(0, 0);
+    await ed.press('j');
+    await page.waitForTimeout(500);
+    await ed.press('k');
+
+    expect(await ed.text()).toBe('jk');
+    await expect(page.getByRole('button', { name: /^Text/ })).toHaveClass(/active/);
+  });
+
+  test('jk leaves a drawing mode too', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Box');
+    await ed.canvas.hover();
+    await ed.press('j');
+    await ed.press('k');
+
+    await expect(page.getByRole('button', { name: /^Select/ })).toHaveClass(/active/);
+  });
+
   test('and one tap of Ctrl, or Ctrl with a key, does not', async ({ page }) => {
     const ed = new Editor(page);
     await ed.goto();

@@ -76,8 +76,12 @@ function groupsFor(tool: ToolId, live: Live): readonly Group[] {
    * A modal editor's worst failure is stranding someone in a mode they cannot
    * name, so the exit is on screen wherever it applies rather than only in the
    * mode they would have to leave to read about it.
+   *
+   * `jk` is the one shown, being the one a hand on the home row reaches without
+   * moving (B-KEY-23); two taps of `Ctrl` ride along in the label rather than
+   * as a row of their own, which would have cost several modes a column.
    */
-  const leave: Item = { keys: ['Ctrl', 'Ctrl'], label: 'Back to select' };
+  const leave: Item = { keys: ['jk'], label: 'Back to select · or Ctrl Ctrl' };
 
   /**
    * The mode letters, off the same table as the toolbar (tools.ts), with the
@@ -263,6 +267,8 @@ function groupsFor(tool: ToolId, live: Live): readonly Group[] {
             // One press, not two: the caret and the mode are the same fact
             // now, so leaving the writing is leaving the mode (B-KEY-21).
             { keys: ['Esc'], label: 'Done · back to select' },
+            // Under text too, where the `j` and `k` are never written (B-KEY-23).
+            { keys: ['jk'], label: 'The same, from the home row' },
             stride,
           ],
         },

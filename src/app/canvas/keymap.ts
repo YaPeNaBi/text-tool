@@ -13,6 +13,7 @@
  *
  * The order the branches are written in *is* the precedence, innermost first:
  *
+ *     jk          back to select, before anything can read the `k` (B-KEY-23)
  *     Ctrl        tools, undo, the clipboard, the file, the jump
  *     menu        the four keys an open actions menu answers (B-UI-11)
  *     caret       a live caret owns typing (B-DRAW-11)
@@ -28,7 +29,7 @@
  * behind, so select and text were one tool. That is gone. Select is now the
  * mode you are *in*, and the plain letters are how you leave it — `b` box,
  * `t` text, `c` connect, `s` circle, from the one table the toolbar reads
- * (tools.ts). `Escape`, or two taps of `Ctrl`, comes back.
+ * (tools.ts). `Escape`, two taps of `Ctrl`, or `jk` comes back.
  *
  * The trade is the point. Point-and-type cost every letter on the keyboard —
  * which is exactly why tools were on `Ctrl`+digit, a shortcut nobody can guess
@@ -59,6 +60,22 @@ import type { Cell } from '../../core/geom/cell.ts';
  * with the little finger.
  */
 const DOUBLE_TAP_MS = 400;
+
+/**
+ * How soon `k` has to follow `j` for the pair to mean "back to select"
+ * (B-KEY-23) rather than two letters.
+ *
+ * Short, because under the text mode the `j` is held back until the window
+ * closes, and a letter that appears late is the price of the gesture. Rolled
+ * off the home row the pair lands well inside it; typed as a word, `jk` would
+ * need a pause, which is the same bargain every editor with this binding makes.
+ */
+const JK_MS = 300;
+
+/** A key pressed on its own: no Ctrl, Meta or Alt. Shift changes the key itself. */
+function bare(ev: KeyboardEvent, key: string): boolean {
+  return ev.key === key && !ev.ctrlKey && !ev.metaKey && !ev.altKey;
+}
 
 /**
  * How far `Alt` carries things: the coarse step, twice as far sideways.
@@ -168,6 +185,32 @@ export function installKeyboard(cancelGesture: () => void): () => void {
    * opened this way closes this way.
    */
   let shiftDraft = false;
+  /**
+   * A bare `j` pressed outside select, waiting to see whether `k` follows
+   * (B-KEY-23).
+   *
+   * Under the text mode the `j` itself is held back, and `timer` writes it if
+   * nothing comes: written and then taken back it would flicker onto the page
+   * and leave an undo step behind for a letter nobody meant. Everywhere else
+   * the `j` has already done what it does — a step down, or nothing — and only
+   * the time is kept.
+   */
+  let pendingJ: { at: number; timer: ReturnType<typeof setTimeout> | null } | null = null;
+
+  /** Let go of a waiting `j`, writing it if it was held back. */
+  const releaseJ = (): void => {
+    const held = pendingJ;
+    pendingJ = null;
+    if (held === null || held.timer === null) return;
+    clearTimeout(held.timer);
+
+    // Already out of the text mode — a toolbar click in the meantime — and the
+    // letter goes with it rather than landing in a mode that does not write.
+    const store = useEditor.getState();
+    if (store.tool !== 'text') return;
+    if (store.caret === null) store.setCaret(store.cursor);
+    useEditor.getState().typeAt('j');
+  };
 
   const typingInInput = (): boolean => {
     const el = document.activeElement;
@@ -186,6 +229,34 @@ export function installKeyboard(cancelGesture: () => void): () => void {
 
   const onKeyDown = (ev: KeyboardEvent): void => {
     if (typingInInput()) return; // B-KEY-08
+
+    // ---- `jk`: back to select (B-KEY-23) ----
+    //
+    // Answered before anything else can read the `k`: under text it would be
+    // written, under the drawing modes it would only walk. Any other key means
+    // the `j` was a letter after all, so it is let go — written, if it was held
+    // back — *before* this key is read, and "ja" still comes out "ja".
+    if (pendingJ !== null) {
+      if (bare(ev, 'k') && Date.now() - pendingJ.at < JK_MS) {
+        ev.preventDefault();
+        const held = pendingJ;
+        pendingJ = null;
+        const now = useEditor.getState();
+        if (held.timer !== null) {
+          clearTimeout(held.timer); // the `j` is never written
+        } else {
+          // Under the drawing modes the `j` walked the cursor a cell down, and
+          // `k` walks it back, so the pair leaves it where it was — and a draft
+          // or a chain aimed where it was before the gesture began.
+          const back = directionOf('k', now.tool);
+          if (back !== undefined) now.moveCursor(back[0], back[1]);
+        }
+        useEditor.getState().setTool('select');
+        return;
+      }
+      releaseJ();
+    }
+
     const store = useEditor.getState();
     const mod = ev.ctrlKey || ev.metaKey;
 
@@ -329,6 +400,18 @@ export function installKeyboard(cancelGesture: () => void): () => void {
         store.setCamera({ ox: 0, oy: 0, zoom: store.camera.zoom });
       }
       return;
+    }
+
+    // A bare `j` outside select may be the first half of `jk` (B-KEY-23). Not a
+    // held-down one: holding `j` to walk and then tapping `k` to step back is
+    // walking, and under text a held `j` is a row of them.
+    if (bare(ev, 'j') && !ev.repeat && store.tool !== 'select') {
+      if (store.tool === 'text') {
+        ev.preventDefault();
+        pendingJ = { at: Date.now(), timer: setTimeout(releaseJ, JK_MS) };
+        return;
+      }
+      pendingJ = { at: Date.now(), timer: null };
     }
 
     // ---- an open menu owns the keyboard (B-UI-11) ----
@@ -734,10 +817,20 @@ export function installKeyboard(cancelGesture: () => void): () => void {
     }
   };
 
+  // A press of the pointer is something happening too: a `j` held back under
+  // the text mode is written where the caret was, before the click can move
+  // it, rather than turning up wherever the click put it.
+  const onPointerDown = (): void => {
+    releaseJ();
+  };
+
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('pointerdown', onPointerDown, true);
   return () => {
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
+    window.removeEventListener('pointerdown', onPointerDown, true);
+    if (pendingJ !== null && pendingJ.timer !== null) clearTimeout(pendingJ.timer);
   };
 }
