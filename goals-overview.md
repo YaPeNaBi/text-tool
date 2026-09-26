@@ -37,6 +37,7 @@ off.
 | M7 | Sticky connectors | ✅ | Lines follow the shape they touch, whether it is moved or resized. | [route/connectors.ts](src/core/route/connectors.ts) |
 | M8 | Files & clipboard | 🟡 | Open, Save, Save As and paste-import behind one interface. Autosave owed. | [src/platform/](src/platform) |
 | M9 | Desktop packaging | 🟡 | Tauri shell scaffolded and configured; **never compiled**. Needs `rustup update`. | [src-tauri/](src-tauri) · [platform/desktop/](src/platform/desktop) |
+| M15 | Terminal build | ✅ | The whole editor in a terminal — `npm run tui`. Same store, same recognizer, a renderer that draws characters instead of pixels. | [src/terminal/](src/terminal) · [platform/terminal/](src/platform/terminal) |
 | M10 | Extensibility hardening | 🟡 | The circle proved the stamper/matcher pair works. Not yet written down as a contract. | [ellipse.ts](src/core/stamp/ellipse.ts) + [recognize.ts](src/core/recognize/recognize.ts) |
 | M12 | **Composition** ◆ | ✅ | Containers carry their contents, shapes carry their labels, resize refuses to destroy them, and typing grows the shape it is inside. | [derive/](src/core/derive) · [ops/](src/core/ops) |
 | M13 | Route finding | 🟡 | ✅ A* over a cost function: connectors go *around* boxes, circles and text, and refuse when there is no way through. ⬜ Fan-out (§3), crossing another line at a price (§6). | [route/astar.ts](src/core/route/astar.ts) · [route/cost.ts](src/core/route/cost.ts) |
@@ -122,6 +123,7 @@ off.
 | Recent files | 🟡 | Names are remembered; reopening in one click is desktop-only. | [platform/](src/platform) |
 | Autosave | ⬜ | Not started. | *(planned)* |
 | Desktop app | 🟡 | Shell scaffolded and wired, but never compiled — needs `rustup update`. | [src-tauri/](src-tauri) |
+| Terminal app | ✅ | `npm run tui`, run straight from source. Real files; the clipboard needs a helper to reach the system one. | [src/terminal/](src/terminal) · [platform/terminal/](src/platform/terminal) |
 
 ### The app shell — `src/app/`
 
@@ -149,6 +151,7 @@ off.
 | Grow to fit | Boxes and table columns growing with what is typed into them. | [tests/typing.test.ts](tests/typing.test.ts) |
 | Composition | Containment, labels, the cascade, detaching flush shapes. | [tests/compose.test.ts](tests/compose.test.ts) |
 | End-to-end | The gesture surface in a real browser. | [e2e/editor.spec.ts](e2e/editor.spec.ts) |
+| Terminal | Bytes into keys — including the splits and the lone `ESC` — the six substituted bindings, and what the frame says. | [tests/terminal.test.ts](tests/terminal.test.ts) |
 
 ---
 

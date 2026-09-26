@@ -19,26 +19,7 @@ import {
   type Metrics,
   type OriginMode,
 } from './camera.ts';
-
-export const COLORS = {
-  bg: '#0f1115',
-  grid: '#1b1f27',
-  originAxis: '#39414f',
-  text: '#dfe4ec',
-  selectionFill: 'rgba(88, 166, 255, 0.16)',
-  selectionStroke: '#58a6ff',
-  handle: '#58a6ff',
-  handleCore: '#0f1115',
-  preview: '#7ee787',
-  previewFill: 'rgba(126, 231, 135, 0.10)',
-  erase: '#f0806c',
-  eraseFill: 'rgba(240, 128, 108, 0.12)',
-  caret: '#7ee787',
-  cursor: '#e3b341',
-  hover: '#3a4451',
-  hint: 'rgba(227, 179, 65, 0.30)',
-  hintStroke: '#e3b341',
-} as const;
+import { COLORS } from './palette.ts';
 
 export interface RenderInput {
   ctx: CanvasRenderingContext2D;

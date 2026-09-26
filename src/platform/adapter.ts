@@ -12,8 +12,21 @@ export interface OpenedFile {
   text: string;
 }
 
+/**
+ * How a platform asks the user for a line of text, when it has no dialog to put
+ * one in.
+ *
+ * The web and the desktop both have a real file picker and never need this. A
+ * terminal's picker is a row at the bottom of its own screen, and the only code
+ * that can draw there is the shell that owns the tty — so the shell hands one
+ * function down and the platform still owns every file read and write. Returns
+ * null when the user presses Escape, which is the same "cancelled" the pickers
+ * report by throwing `AbortError`.
+ */
+export type LinePrompt = (question: string, initial: string) => Promise<string | null>;
+
 export interface PlatformAdapter {
-  readonly id: 'web' | 'desktop';
+  readonly id: 'web' | 'desktop' | 'terminal';
   /** Human-readable note about what this platform cannot do, if anything. */
   readonly limitation: string | null;
 

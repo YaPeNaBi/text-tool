@@ -186,7 +186,19 @@ interface PlatformAdapter {
 }
 ```
 
-Two implementations — `platform/web` (File System Access API, with a download fallback for Firefox/Safari) and `platform/desktop` (Tauri APIs, native menus and dialogs). **Nothing else in the codebase may touch a file, a dialog or the clipboard.** One interface, one shared UI, no forked code paths.
+Three implementations — `platform/web` (File System Access API, with a download fallback for Firefox/Safari), `platform/desktop` (Tauri APIs, native menus and dialogs), and `platform/terminal` (`node:fs`, and a dialog the shell draws on the bottom row). **Nothing else in the codebase may touch a file, a dialog or the clipboard.** One interface, one shared UI, no forked code paths.
+
+### The terminal target (added after M8; not in the original three)
+
+Not a decision that was taken here — a target the boundary turned out to have already paid for. `core/` was DOM-free for testability and `app/` talked only to `platform()`, so a second *shell* over the same store cost one directory (`src/terminal/`, six files) and no change to anything above it. It is worth naming three things it proved, because each was a claim this plan made without evidence:
+
+1. **The boundary was real, not decorative.** A third implementation landed without touching `src/app/**`. The `PlatformAdapter` escape hatch that §6 justified as insurance against WebKitGTK got exercised for something else entirely.
+2. **The extraction pressure was the same one the code already knew.** `tools.ts` exists because a list in two places drifts. Gaining a second renderer forced the same move three more times — `ribbon-items.ts` (the key band's rows), `canvas/steps.ts` (the directions and the stride), `canvas/palette.ts` (the colours) — and found a real drift already present: the ribbon's `jk` row had been updated in one copy only.
+3. **One dependency direction had to be inverted.** `platform/index.ts` cannot statically import a Node adapter: Rollup follows the import and `node:fs` fails to resolve for the browser. So the shell installs its platform (`installPlatform`) rather than the index picking it, which is the direction `src-tauri/` already worked in.
+
+It runs from source under Node's type stripping, with no build step — which is what makes `allowImportingTsExtensions` and the `.ts` on every import load-bearing rather than stylistic, and the reason the key band's data lives in a `.ts` rather than the `.tsx` that draws it.
+
+What a tty cannot report — key releases, bare modifiers, `Ctrl` and a digit — costs six bindings, listed as data in `terminal/keymap.ts` and pinned by a test so the count cannot grow quietly. See the README for the table.
 
 ### Desktop shell: Tauri 2 (recommendation)
 
@@ -343,8 +355,9 @@ Because you asked for a working frontend now, M2–M6 were sliced vertically rat
 | **M5** | Select mode | **done** | click-to-recognise, drill-through cycling with depth readout, marquee, highlight, stickiness, shift-add/remove, Ctrl+A |
 | **M6** | Manipulate | **done** | move by drag and by arrow keys, delete, resize handles on boxes and circles, duplicate, gesture-scoped occlusion restore, one-drag-one-undo, 24 Playwright specs |
 | **M7** | Sticky connectors | **partial** | ✅ On move, lines attached to the shape are detected and re-routed orthogonally (L when one end is anchored, Z when both are), in the same diff so one gesture is one undo step; the side is chosen from where the shapes ended up. ⬜ re-route on resize (M12), fan-out and obstacle avoidance (M13) |
-| **M8** | I/O & persistence | **partial** | ✅ `.txt` as native format, paste import, recent names, `PlatformAdapter` with web and desktop implementations. ⬜ autosave, desktop path unverified |
+| **M8** | I/O & persistence | **partial** | ✅ `.txt` as native format, paste import, recent names, `PlatformAdapter` with web, desktop and terminal implementations. ⬜ autosave, desktop path unverified |
 | **M9** | Desktop packaging | **partial** | ✅ Tauri 2 shell, config, capabilities, icons, npm scripts. ⬜ **never compiled** — needs Rust 1.85+; installers, smoke tests, auto-update (D7) |
+| **M15** | Terminal build | **done** | `src/terminal/` — a second shell over the same store: input decoder, keymap, mouse, and a cell-diffing renderer, run from source with no build step. Every key the web build has except the six a tty cannot report, and the eraser and freehand work by mouse. 41 specs. Not in the original plan; see §6 |
 | **M10** | Extensibility hardening | **partial** | ✅ The circle was added as a stamper/matcher pair plus wiring, which is the proof the contract asked for. ⬜ write the contract down |
 | **M12** | **Composition** ★ | specified | Containment, labels and the cascade. `derive/` for facts the characters imply; `ops/` for planners that return one diff or a refusal. Ships nesting §1–6 and content §1–6, §9. Everything below depends on it |
 | **M13** | Route finding | specified | `route/astar.ts` over a terrain and a price list, bounded and able to fail; plus connector fan-out. Ships all of [pathfinding.md](intuitive/pathfinding.md) and completes M7 |

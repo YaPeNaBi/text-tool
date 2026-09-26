@@ -7,8 +7,7 @@ import {
   useEditor,
 } from '../state/store.ts';
 import { TOOLS } from '../tools.ts';
-
-const NOTICE_MS = 2000;
+import { NOTICE_MS } from '../canvas/palette.ts';
 
 export function Toolbar(): React.JSX.Element {
   const tool = useEditor((s) => s.tool);

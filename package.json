@@ -6,6 +6,7 @@
   "license": "GPL-3.0-or-later",
   "scripts": {
     "dev": "vite",
+    "tui": "node src/terminal/main.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",

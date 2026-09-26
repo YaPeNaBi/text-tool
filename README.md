@@ -9,6 +9,67 @@ character grid; what you see is exactly what gets saved.
 └──────────┘        └──────────┘
 ```
 
+## Run it in your terminal
+
+```bash
+npm install
+npm run tui
+```
+
+That is the whole thing — there is no build step. Node runs the TypeScript
+straight from source, so nothing is compiled, bundled or watched.
+
+| Command | What it does |
+|---|---|
+| `npm run tui` | A new, empty document |
+| `npm run tui -- diagram.txt` | Open that file — or start a new document under that name |
+| `npm run tui -- --no-band` | Start with the key band hidden, for five more rows of canvas |
+| `npm run tui -- --help` | The flags, without starting up |
+
+The `--` is npm's, not ours: it is how arguments get past npm to the program.
+`node src/terminal/main.ts diagram.txt` works just as well.
+
+**Needs Node 22.18 or newer** (or 23.6+), where running a `.ts` file takes no
+flag. On Node 22.6 – 22.17, add `--experimental-strip-types`:
+
+```bash
+node --experimental-strip-types src/terminal/main.ts
+```
+
+It has to be a real terminal. Piped anywhere, it says so and stops rather than
+spraying escape codes into whatever was on the other end.
+
+### Once you are in it
+
+Press **`F1`**. It lists every key the mode you are in has, and it changes as you
+change mode — it is the same table the browser build draws as a ribbon.
+
+| Key | |
+|---|---|
+| `1`–`7`, or `b` `s` `c` `t` | Pick a tool — box, circle, connect, text |
+| `hjkl` or the arrow keys | Move |
+| `Space`, then `Enter` | Draw a box or a circle · a line takes a corner per press |
+| `Enter` | With nothing being drawn: select what is under the cursor, again to widen |
+| `jk` or `Esc` | Back to select |
+| `Ctrl+O` `Ctrl+S` `Alt+S` | Open · Save · Save as |
+| `Ctrl+Z` `Ctrl+Y` | Undo · redo |
+| `F1` `F2` `F3` | The key band · the charset · whether connectors follow shapes |
+| **`Ctrl+X`** | **Leave** — it asks first if there is unsaved work |
+
+`Ctrl+C` is **copy**, not the interrupt: this build keeps the editor's keymap
+rather than the shell's, which is why leaving is `Ctrl+X`.
+
+The mouse works if your terminal reports one — click to select, click again to
+step through the other readings of the same click, drag to draw, drag a shape to
+move it, right-click for the actions menu, wheel to scroll. Two tools need it:
+the eraser and freehand are drags or they are nothing.
+
+Six keys differ from the browser build because a terminal physically cannot
+report the gesture the browser uses — see
+[the terminal build](#the-terminal-build) for the list and what forced each one.
+
+---
+
 - [goals-overview.md](goals-overview.md) — what works today, in plain language
 - [glossary.md](glossary.md) — the words this project uses, and what they mean here
 - [behaviour-goals.md](behaviour-goals.md) — the precise behavioural contract (`B-…` IDs)
@@ -28,6 +89,7 @@ npm run dev
 
 | Command | What it does |
 |---|---|
+| `npm run tui` | The terminal build — no build step ([above](#run-it-in-your-terminal)) |
 | `npm run dev` | Dev server with hot reload |
 | `npm run build` | Type-check, then a static bundle in `dist/` |
 | `npm test` | Unit tests (Vitest) |
@@ -139,34 +201,47 @@ src/
     io/text.ts               toText / fromText
 
   platform/                  the only code allowed to touch files or the clipboard
-    adapter.ts               the interface both implementations satisfy
+    adapter.ts               the interface all three implementations satisfy
     web/                     File System Access API, download fallback
     desktop/                 Tauri dialogs and fs
-    index.ts                 picks one at startup
+    terminal/                node:fs, and no dialogs — the shell draws those
+    index.ts                 picks web or desktop; a Node shell installs its own
 
-  app/
+  app/                       shared by every build above platform/
     tools.ts                 the toolbar's order — which Ctrl+digit, and which bare letter
     state/store.ts           document state + session state; the sole mutation path
     canvas/
       camera.ts              cell <-> screen, zoom, font metrics
+      palette.ts             the one colour table, for both renderers
+      steps.ts               the four directions, hjkl, and how far Alt carries
       renderer.ts            draws the visible cells straight from the grid
       gesture.ts             the Drag union, and a gesture's preview as a pure function
       keymap.ts              what every key means; each branch ends in a store call
       CanvasView.tsx         the element, its size, the pointer, the frame
     components/              Toolbar, Ribbon, StatusBar, ShapeMenu
+      ribbon-items.ts        what each tool can do, as data — the band, in both builds
+
+  terminal/                  the second shell: no DOM, no React, no build step
+    main.ts                  owns the tty; routes input; installs the platform
+    ansi.ts                  the screen as a grid of coloured cells, diffed per row
+    keys.ts                  bytes -> presses and clicks, named as the DOM names them
+    keymap.ts                the same precedence as canvas/keymap.ts, six keys apart
+    pointer.ts               CanvasView's pointer handlers, with the pixels removed
+    frame.ts                 the frame: toolbar, canvas, key band, status line
 
   src-tauri/                 the desktop shell (Rust)
-  tests/                     Vitest — the pure core
+  tests/                     Vitest — the pure core, and the terminal's own layer
   e2e/                       Playwright — the gesture surface in a real browser
 ```
 
-### Three hard boundaries, all enforced by ESLint
+### Four hard boundaries, all enforced by ESLint
 
 | Rule | Why it exists |
 |---|---|
 | `src/core/**` may not import React, the store, or touch `window`/`document` | Keeps recognition testable without a browser, and keeps the door open to reusing `core` in a VS Code extension |
 | Only `store.ts` may import `applyDiff` | One writer means one place to change for multiplayer, and one place undo can be trusted |
-| `src/app/**` may not reach into `platform/web` or `platform/desktop` | One shared UI, no forked code paths per platform |
+| `src/app/**` may not reach into `platform/{web,desktop,terminal}` | One shared UI, no forked code paths per platform |
+| `src/terminal/**` may not import React, the canvas renderer, or the camera | A second shell, not a second app — and the first sign of a fork would be a copy of something that already exists |
 
 If you find yourself wanting to break one of these, that is the signal to revisit
 [plan.md](plan.md) rather than the lint config.
@@ -346,6 +421,84 @@ tick — which happens with fast input, not just in tests.
 
 ---
 
+## The terminal build
+
+A document that is characters, drawn on a device that is characters. One document
+cell is one terminal cell, which makes this the only build with no coordinate
+conversion in it at all — and the reason it exists is that it cost almost nothing:
+everything above `platform/` is shared, unchanged.
+
+```
+                            ┌──────────────┐
+                            │  core/  app/ │   store · recognizer · stampers
+                            └──────┬───────┘   gesture · ribbon rows · palette
+             ┌─────────────────────┼─────────────────────┐
+             │                     │                     │
+      ┌──────┴──────┐       ┌──────┴──────┐       ┌──────┴──────┐
+      │   index.html│       │  src-tauri/ │       │  terminal/  │
+      │   CanvasView│       │  (the same) │       │  frame.ts   │
+      └─────────────┘       └─────────────┘       └─────────────┘
+       platform/web          platform/desktop      platform/terminal
+```
+
+**It runs straight from source.** `node src/terminal/main.ts` — Node strips the
+types and runs it. That is why every import in this codebase carries its `.ts`
+extension, and why `ribbon-items.ts` is a `.ts` and not a `.tsx`: a shell with no
+build step cannot afford a file that needs one.
+
+Three things the terminal does *better* than the canvas, all of them because it
+is the native medium:
+
+- **The caret is the terminal's own cursor.** B-UI-10 asks for one position drawn
+  two ways — a bar where the keyboard is writing, a block where it is only
+  pointing — and `DECSCUSR` is exactly that, in hardware. So B-UI-07's blink comes
+  free and in step with every other cursor on the machine.
+- **There are no font metrics to measure.** The risk plan.md names for the Linux
+  desktop build — WebKitGTK measuring text differently and the grid developing
+  seams — cannot arise where the grid *is* the text.
+- **Rows are diffed.** A keystroke usually changes one row, and only that row is
+  written, which is what keeps it responsive over SSH.
+
+And three the canvas does better, listed so nobody hunts for them: there is no
+zoom (a cell is the size the font makes it), there are no grid lines (they are
+drawn *between* cells, and between two terminal cells there is nothing), and every
+translucent outline became a flat wash, since a terminal cell has no alpha.
+
+### The six keys that differ, and what forced each
+
+A tty reports strictly less than a browser does: no key release, no bare
+modifiers, and no encoding for `Ctrl` and a digit. Three web bindings rest on
+exactly those, so they need somewhere else to live. The list is kept as data in
+`terminal/keymap.ts` (`SUBSTITUTES`), the key band on screen reads it so it prints
+the key that actually works, and a test pins the count so a seventh divergence has
+to be written down to get in.
+
+| In a browser | In a terminal | Why |
+|---|---|---|
+| `Ctrl`+`1`…`7` | `1`…`7` | Control codes only cover the letters. Select does not write, so the bare digits are free here in a way they are not in a browser |
+| `Shift` `Shift` — select by object | `o` | A bare modifier sends nothing at all; the double tap cannot be seen |
+| `Ctrl` `Ctrl` — back to select | `Esc`, or `jk` | The same, and both of these already did it |
+| `Shift`+arrows — draw, release to keep | `Shift`+arrows, then `Enter` | No key release to commit on, so the gesture borrows `Space`'s ending |
+| `Ctrl`+`Enter` — everything joined up | `g` | A terminal sends a plain carriage return; the modifier is lost |
+| `Ctrl`+`Shift`+`S` / `Ctrl`+`Shift`+`C` | `Alt`+`S` / `Alt`+`C` | Shift on a control code is unrepresentable — `Ctrl`+`S` and `Ctrl`+`Shift`+`S` are one byte |
+
+Everything else is the same key, ending in the same store call. Three keys are the
+shell's own and have no browser counterpart, because what they do is a dropdown or
+a checkbox there: `F1` the key band, `F2` the charset, `F3` whether connectors
+follow shapes. `Ctrl+X` leaves.
+
+### What it cannot do
+
+- **Read the system clipboard.** No terminal API exists for it. `OSC 52` writes
+  and most terminals honour that; reading goes through `wl-paste`, `xclip`, `xsel`,
+  `pbpaste` or PowerShell, and falls back to a clipboard kept in the process — so
+  copy-then-paste inside one session always works, and the status line says when
+  that is all you are getting.
+- **Remember recent files.** No `localStorage`, and a dotfile is a decision about
+  someone else's home directory.
+
+---
+
 ## Rendering
 
 Canvas 2D, hand-rolled, one `fillText` per visible cell. No virtual DOM, no scene
@@ -365,6 +518,10 @@ is what keeps the grid seam-free across platforms and font stacks.
 
 **Select is the mode you live in.** It points, selects and navigates; it does not
 write. A bare letter leaves it, and `Escape` — or two taps of `Ctrl` — comes back.
+
+The table below is the browser and desktop builds. The terminal answers six of
+these differently because a tty cannot report the gesture — see
+[the six keys that differ](#the-six-keys-that-differ-and-what-forced-each).
 
 | Keys | |
 |---|---|

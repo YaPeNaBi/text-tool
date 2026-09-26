@@ -2,7 +2,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 const PLATFORM_PATTERN = {
-  group: ['**/platform/web/**', '**/platform/desktop/**'],
+  group: ['**/platform/web/**', '**/platform/desktop/**', '**/platform/terminal/**'],
   message: 'Import from src/platform only; it picks the implementation.',
 };
 
@@ -56,15 +56,25 @@ export default tseslint.config(
    * restates this pattern alongside the applyDiff one.
    */
   {
-    files: ['src/app/**/*.{ts,tsx}', 'src/*.{ts,tsx}'],
+    files: ['src/app/**/*.{ts,tsx}', 'src/terminal/**/*.ts', 'src/*.{ts,tsx}'],
+    /**
+     * The one file allowed to name its own platform.
+     *
+     * A *shell* knows which platform it is — `src-tauri/main.rs` is nothing but
+     * that knowledge — and the terminal's has to, because `platform/index.ts`
+     * cannot import a Node adapter without dragging `node:fs` into the browser
+     * bundle. What the rule is actually protecting is `src/app/**`, which still
+     * cannot name any of the three.
+     */
+    ignores: ['src/terminal/main.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [PLATFORM_PATTERN] }],
     },
   },
 
   {
-    files: ['src/app/**/*.{ts,tsx}'],
-    ignores: ['src/app/state/store.ts'],
+    files: ['src/app/**/*.{ts,tsx}', 'src/terminal/**/*.ts'],
+    ignores: ['src/app/state/store.ts', 'src/terminal/main.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -78,6 +88,39 @@ export default tseslint.config(
             },
           ],
         },
+      ],
+    },
+  },
+
+  /**
+   * Boundary 4 — the terminal build is a second *shell*, not a second app.
+   *
+   * It may reach down into `core` and across into `app`, because reusing every
+   * line above `platform/` is the whole point of it. What it may not do is grow
+   * its own copy of anything that already exists: React has no business here, and
+   * a canvas renderer imported into a program with no canvas would be the first
+   * sign that the two builds had started to fork.
+   */
+  {
+    files: ['src/terminal/**/*.ts'],
+    ignores: ['src/terminal/main.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            PLATFORM_PATTERN,
+            {
+              group: ['react', 'react-dom', '**/*.tsx', '**/canvas/renderer*', '**/canvas/camera*'],
+              message: 'The terminal shell has no DOM: draw through terminal/frame.ts.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        { name: 'window', message: 'The terminal shell has no DOM.' },
+        { name: 'document', message: 'The terminal shell has no DOM.' },
       ],
     },
   },
