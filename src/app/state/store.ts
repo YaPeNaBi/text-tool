@@ -35,7 +35,8 @@ import {
   type Rect,
 } from '../../core/geom/cell.ts';
 import { applyDiff, createGrid, type CellDiff, type Grid } from '../../core/grid/grid.ts';
-import { jumpFrom } from '../../core/grid/jump.ts';
+import { jumpFrom, strideFrom } from '../../core/grid/jump.ts';
+import { strideBy } from '../canvas/steps.ts';
 import { CHARSETS, charsetOf, type Charset } from '../../core/charset/charsets.ts';
 import { History } from '../../core/history/history.ts';
 import {
@@ -375,6 +376,8 @@ export interface EditorState {
   sweepBy: (dx: number, dy: number, mode: 'flow' | 'area') => void;
   /** `Ctrl`+arrow: to the edge of what is filled, the spreadsheet jump. */
   jumpBy: (dx: number, dy: number) => void;
+  /** `Alt`+arrow: a stride, stopping at the first wall across it (B-KEY-19a). */
+  strideBy: (dx: number, dy: number) => void;
   /** The same jump, dragging a selection out to where it lands. */
   jumpSweep: (dx: number, dy: number) => void;
   /** `Enter`: switch between the smallest shape here and the whole one. */
@@ -924,6 +927,29 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { grid, cursor, caret } = get();
     const next = jumpFrom(grid, caret ?? cursor, dx, dy);
     typingRun++; // a moved caret starts a fresh undo entry
+
+    set({
+      cursor: next,
+      sweep: null,
+      objectMode: false,
+      ...(caret === null ? {} : { caret: next, caretHome: next.x }),
+    });
+  },
+
+  /**
+   * `Alt`+arrow: a stride, which stops when it reaches a wall (B-KEY-19a).
+   *
+   * Deliberately the same shape as `jumpBy` above, down to the caret handling,
+   * because the two are the same kind of thing — a key that moves the keyboard's
+   * one position (B-UI-10) by asking the characters how far it can go. Only the
+   * question differs: `Ctrl` asks where the content is, `Alt` asks what is in the
+   * way.
+   */
+  strideBy: (dx, dy) => {
+    const { grid, cursor, caret } = get();
+    const [sx, sy] = strideBy(dx, dy);
+    const next = strideFrom(grid, caret ?? cursor, sx, sy);
+    typingRun++;
 
     set({
       cursor: next,

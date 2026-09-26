@@ -98,3 +98,63 @@ export function jumpFrom(grid: Grid, from: Cell, dx: number, dy: number): Cell {
   if (dy < 0) return { x: from.x, y: 0 };
   return { x: from.x + dx, y: from.y + dy };
 }
+
+/**
+ * Where `Alt`+arrow lands: the full stride, unless a wall is in the way.
+ *
+ * `dx`/`dy` are the whole stride — ten across or five down (B-KEY-19) — rather
+ * than a direction and a count, which is what keeps the two numbers in the one
+ * place that already owns them (`app/canvas/steps.ts`) and keeps this module
+ * free of a constant about how a keyboard feels.
+ *
+ * ── What counts as a wall ─────────────────────────────────────────────────
+ *
+ * The same test `Ctrl`+arrow uses to find a junction (B-KEY-18a): a cell carrying
+ * an arm **across** the line of travel. Going sideways that means north or south,
+ * going up or down it means east or west.
+ *
+ * Reusing it is not a coincidence, it is the whole reason this works. The obvious
+ * rule — "stop at the first filled cell" — is wrong in a way that only shows up
+ * once you try it: striding along the top of a box, every single `─` is a filled
+ * cell, so the stride becomes a one-cell step and the key appears broken. An
+ * across-arm test asks the question you actually mean. A `─` you are travelling
+ * *along* is not in your way; the `┐` at the end of it is, and so is the `┬` of a
+ * table divider halfway down, and so is a box's `│` border met side-on.
+ *
+ * Two consequences worth stating, because both are deliberate:
+ *
+ *   - **Text never stops you.** A word has no arms, so striding across a
+ *     paragraph does not stutter. The feature is about lines and boxes, which is
+ *     what it was asked for.
+ *   - **A diagonal never stops you.** `/` and `\` have no arms either — they
+ *     **link** instead (B-CONN-08), and a slash is text to everything that is not
+ *     the tracer. Blocking on one would be the first place in the codebase to
+ *     disagree with that.
+ *
+ * ── Why it stops *on* the wall, and only once ─────────────────────────────
+ *
+ * The cell is tested **after** stepping onto it, exactly as B-KEY-18a is, so a
+ * wall you are already standing on is one you can leave. That is what makes this
+ * a pause rather than a trap: the first press puts you on the border, and the
+ * next one strides off it normally.
+ */
+export function strideFrom(grid: Grid, from: Cell, dx: number, dy: number): Cell {
+  const stepX = Math.sign(dx);
+  const stepY = Math.sign(dy);
+  // Only ever one axis is non-zero, as with `strideBy` itself.
+  const across = stepX !== 0 ? N | S : E | W;
+  const steps = Math.max(Math.abs(dx), Math.abs(dy));
+
+  let { x, y } = from;
+  for (let step = 0; step < steps; step++) {
+    const nx = x + stepX;
+    const ny = y + stepY;
+    // The quadrant has two walls of its own, and they clamp rather than refuse
+    // (B-PLANE-04) — the same thing `moveCursor` does with a bare arrow.
+    if (nx < 0 || ny < 0) break;
+    x = nx;
+    y = ny;
+    if ((maskOf(grid, x, y) & across) !== 0) break;
+  }
+  return { x, y };
+}

@@ -552,6 +552,7 @@ these differently because a tty cannot report the gesture — see
 | `Ctrl`+`Alt`+arrow | move the selection by a stride |
 | `Ctrl`+`Shift`+arrow · `Ctrl`+`Alt`+arrow | that jump, dragging a selection with it · sweep in reading order |
 | `Alt`+arrow | nudge whatever is selected — or stride, with nothing selected: ten cells across, five down |
+| …and that stride **stops at a wall** | the first line or border lying across it, so `Alt` lands you *on* a box's edge rather than through it. One press of a pause: the next stride is full length, and a wall you are travelling *along* is not in the way — striding down a box's side runs to its corner |
 | `Shift`+click | add the whole connected thing to the selection, or remove it |
 | `Ctrl`+click | add just the piece under the pointer — build a selection out of parts |
 | `Ctrl`+`A` / `Ctrl`+`D` | select all / duplicate |

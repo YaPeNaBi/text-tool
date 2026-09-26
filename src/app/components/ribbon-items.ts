@@ -59,8 +59,18 @@ export interface Live {
 }
 
 export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
-  /** The same stride everywhere, so it is listed everywhere (B-KEY-19). */
-  const stride: Item = { keys: ['Alt', '←→↑↓'], label: 'Stride: ten across, five down' };
+  /**
+   * The same stride everywhere, so it is listed everywhere (B-KEY-19).
+   *
+   * The wall is named because it is the half of this key nobody would guess
+   * (B-KEY-19a) — that the count is *up to* ten rather than exactly ten. The
+   * distance you could work out by pressing it twice; a stride that sometimes
+   * stops short would just look erratic.
+   */
+  const stride: Item = {
+    keys: ['Alt', '←→↑↓'],
+    label: 'Stride: ten across, five down — stops at a wall',
+  };
 
   const typing: Group = {
     name: 'Typing',

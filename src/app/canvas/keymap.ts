@@ -406,8 +406,7 @@ export function installKeyboard(cancelGesture: () => void): () => void {
           // selected — with a run selected Shift is already what moves it,
           // and two keys for one job is how a keymap starts to rot.
           if (ev.altKey && sel === null) {
-            const [sx, sy] = strideBy(dx, dy);
-            store.moveCaret(sx, sy);
+            store.strideBy(dx, dy);
             return;
           }
           if (ev.shiftKey && sel !== null) {
@@ -501,7 +500,6 @@ export function installKeyboard(cancelGesture: () => void): () => void {
     if (drawStep !== undefined) {
       ev.preventDefault();
       const [dx, dy] = drawStep;
-      const [sx, sy] = ev.altKey ? strideBy(dx, dy) : [dx, dy];
 
       // Shift and an arrow — or Shift and `hjkl`, the same key twice — draws a
       // box in **one** gesture: the first press pins the corner the cursor is
@@ -518,7 +516,11 @@ export function installKeyboard(cancelGesture: () => void): () => void {
         store.startDraft('box');
         shiftDraft = true;
       }
-      store.moveCursor(sx, sy);
+      // A stride stops at a wall (B-KEY-19a), which is worth as much to a corner
+      // being dragged as to the keyboard on its own: it is how a new box is lined
+      // up against one that is already there.
+      if (ev.altKey) store.strideBy(dx, dy);
+      else store.moveCursor(dx, dy);
       return;
     }
 
@@ -584,10 +586,8 @@ export function installKeyboard(cancelGesture: () => void): () => void {
         // Nudge what is selected; with nothing selected there is nothing to
         // nudge, so the stride falls to the keyboard itself rather than the
         // key doing nothing at all.
-        if (store.selection === null) {
-          const [sx, sy] = strideBy(dx, dy);
-          store.moveCursor(sx, sy);
-        } else store.moveSelection(dx, dy);
+        if (store.selection === null) store.strideBy(dx, dy);
+        else store.moveSelection(dx, dy);
         return;
       }
       if (store.selectNeighbourCell(dx, dy)) {

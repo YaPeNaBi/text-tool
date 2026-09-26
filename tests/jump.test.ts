@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { UNICODE } from '../src/core/charset/charsets.ts';
 import { ck, type Cell } from '../src/core/geom/cell.ts';
 import { applyDiff, createGrid, type Grid } from '../src/core/grid/grid.ts';
-import { jumpFrom } from '../src/core/grid/jump.ts';
+import { jumpFrom, strideFrom } from '../src/core/grid/jump.ts';
 import { stampBox } from '../src/core/stamp/box.ts';
 
 function write(grid: Grid, x: number, y: number, s: string): void {
@@ -187,5 +187,131 @@ describe('a junction is somewhere to stop (B-KEY-18a)', () => {
 
     // Nothing joins it, so there is nothing to stop at before the far corner.
     expect(jumpFrom(grid, at(0, 0), 1, 0)).toEqual(at(8, 0));
+  });
+});
+
+/**
+ * The stride, and where it stops.
+ *
+ * The case worth pinning is the one the obvious implementation gets wrong:
+ * striding *along* a wall must keep striding. A "stop at the first filled cell"
+ * rule turns the top edge of a box into a one-cell step, which reads as the key
+ * being broken rather than as the wall being there.
+ */
+describe('a stride that stops at a wall', () => {
+  /** A box with its left wall at x = 12, on rows 2 to 8. */
+  const boxed = (): Grid => {
+    const grid = createGrid();
+    applyDiff(grid, stampBox(grid, { x: 12, y: 2, w: 20, h: 7 }, UNICODE));
+    return grid;
+  };
+
+  it('takes the whole stride when nothing is in the way', () => {
+    const grid = createGrid();
+
+    expect(strideFrom(grid, at(0, 0), 10, 0)).toEqual(at(10, 0));
+    expect(strideFrom(grid, at(0, 0), 0, 5)).toEqual(at(0, 5));
+  });
+
+  it('stops on a border it meets side-on', () => {
+    const grid = boxed();
+
+    // Row 4 crosses the box's interior, so the left wall is in the way.
+    expect(strideFrom(grid, at(5, 4), 10, 0)).toEqual(at(12, 4));
+  });
+
+  it('strides normally again from the wall it stopped on', () => {
+    const grid = boxed();
+
+    // The pause is one press long: standing on the wall, the next stride is full
+    // length, because the cell is tested after stepping onto it.
+    expect(strideFrom(grid, at(12, 4), 10, 0)).toEqual(at(22, 4));
+    // …and the far wall stops it on the press after that.
+    expect(strideFrom(grid, at(22, 4), 10, 0)).toEqual(at(31, 4));
+    expect(strideFrom(grid, at(31, 4), 10, 0)).toEqual(at(41, 4));
+  });
+
+  it('stops on a horizontal edge met from above', () => {
+    const grid = boxed();
+
+    expect(strideFrom(grid, at(20, 0), 0, 5)).toEqual(at(20, 2));
+    expect(strideFrom(grid, at(20, 2), 0, 5)).toEqual(at(20, 7));
+    expect(strideFrom(grid, at(20, 7), 0, 5)).toEqual(at(20, 8));
+  });
+
+  it('rides along a wall rather than stopping on every cell of it', () => {
+    const grid = boxed();
+
+    // The whole point. `─` has no arm across the line of travel, so the top edge
+    // is not in the way of something moving along it — the corner at the end is.
+    expect(strideFrom(grid, at(13, 2), 10, 0)).toEqual(at(23, 2));
+    expect(strideFrom(grid, at(23, 2), 10, 0)).toEqual(at(31, 2));
+  });
+
+  it('rides down a vertical wall to the corner, for the same reason', () => {
+    const grid = boxed();
+
+    expect(strideFrom(grid, at(12, 3), 0, 5)).toEqual(at(12, 8));
+  });
+
+  it('stops at a divider that joins the wall it is riding', () => {
+    const grid = boxed();
+    // A column divider at x = 20: a `┬` in the top edge, a `┴` in the bottom.
+    for (let y = 3; y < 8; y++) grid.set(ck(20, y), '│');
+    grid.set(ck(20, 2), '┬');
+    grid.set(ck(20, 8), '┴');
+
+    // Riding the top edge now has somewhere to be before the far corner.
+    expect(strideFrom(grid, at(13, 2), 10, 0)).toEqual(at(20, 2));
+    expect(strideFrom(grid, at(20, 2), 10, 0)).toEqual(at(30, 2));
+  });
+
+  it('is not stopped by text', () => {
+    const grid = createGrid();
+    write(grid, 3, 0, 'hello world');
+
+    // A word has no arms. Striding across a paragraph must not stutter — the
+    // feature is about lines and boxes.
+    expect(strideFrom(grid, at(0, 0), 10, 0)).toEqual(at(10, 0));
+  });
+
+  it('is not stopped by a diagonal, which has no arms either', () => {
+    const grid = createGrid();
+    grid.set(ck(5, 0), '/');
+    grid.set(ck(6, 0), '\\');
+
+    // A slash **links** rather than connects (B-CONN-08) and is text to
+    // everything but the tracer; stopping here would be the one place that
+    // disagreed.
+    expect(strideFrom(grid, at(0, 0), 10, 0)).toEqual(at(10, 0));
+  });
+
+  it('does stop at a lone +, which the grid reads as a crossing', () => {
+    const grid = createGrid();
+    write(grid, 0, 0, 'a+b');
+
+    // Not the answer this test first assumed. `+` is ambiguous: it narrows to the
+    // directions a neighbour points back from (B-CONN-04), and with nothing
+    // pointing back it falls back to all four (B-CONN-05) — so as far as the grid
+    // is concerned there is a crossing here, and `Ctrl`+arrow has always stopped
+    // at it too (B-KEY-18a).
+    //
+    // Left that way deliberately. The cost is a one-press pause on `a+b`; the
+    // alternative is the stride and the jump disagreeing about what a junction is,
+    // which is a far worse thing to have to remember.
+    expect(strideFrom(grid, at(0, 0), 10, 0)).toEqual(at(1, 0));
+  });
+
+  it('clamps at the origin instead of refusing', () => {
+    const grid = createGrid();
+
+    expect(strideFrom(grid, at(4, 0), -10, 0)).toEqual(at(0, 0));
+    expect(strideFrom(grid, at(0, 2), 0, -5)).toEqual(at(0, 0));
+  });
+
+  it('stops at a wall on the way back to the origin', () => {
+    const grid = boxed();
+
+    expect(strideFrom(grid, at(40, 4), -10, 0)).toEqual(at(31, 4));
   });
 });

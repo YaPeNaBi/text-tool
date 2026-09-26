@@ -396,8 +396,7 @@ export function createKeymap(shell: Shell): Keyboard {
           const sel = store.selection;
 
           if (press.alt && sel === null) {
-            const [sx, sy] = strideBy(dx, dy);
-            store.moveCaret(sx, sy);
+            store.strideBy(dx, dy);
             return;
           }
           if (press.shift && sel !== null) {
@@ -464,7 +463,6 @@ export function createKeymap(shell: Shell): Keyboard {
     const drawStep = store.tool === 'select' ? undefined : directionOf(key, store.tool);
     if (drawStep !== undefined) {
       const [dx, dy] = drawStep;
-      const [sx, sy] = press.alt ? strideBy(dx, dy) : [dx, dy];
 
       // Shift and an arrow still *starts* the box (B-DRAW-15) — what it cannot
       // do here is end it, there being no release to end on. So the gesture
@@ -472,7 +470,11 @@ export function createKeymap(shell: Shell): Keyboard {
       // Enter to keep it. The draft on screen is identical either way, which is
       // what makes this a smaller difference than it first looks.
       if (press.shift && store.tool === 'box' && store.draft === null) store.startDraft('box');
-      store.moveCursor(sx, sy);
+      // A stride stops at a wall (B-KEY-19a), which is worth as much to a corner
+      // being dragged as to the keyboard on its own: it is how a new box is lined
+      // up against one that is already there.
+      if (press.alt) store.strideBy(dx, dy);
+      else store.moveCursor(dx, dy);
       return;
     }
 
@@ -540,10 +542,8 @@ export function createKeymap(shell: Shell): Keyboard {
       if (press.alt) {
         // Nudge what is selected; with nothing selected there is nothing to
         // nudge, so the stride falls to the keyboard itself.
-        if (store.selection === null) {
-          const [sx, sy] = strideBy(dx, dy);
-          store.moveCursor(sx, sy);
-        } else store.moveSelection(dx, dy);
+        if (store.selection === null) store.strideBy(dx, dy);
+        else store.moveSelection(dx, dy);
         return;
       }
       if (store.selectNeighbourCell(dx, dy)) {
