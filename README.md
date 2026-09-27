@@ -50,6 +50,7 @@ change mode — it is the same table the browser build draws as a ribbon.
 | `hjkl` or the arrow keys | Move |
 | `Space`, then `Enter` | Draw a box or a circle · a line takes a corner per press |
 | `Enter` | With nothing being drawn: select what is under the cursor, again to widen |
+| `e` | The actions menu on the selection — arrows or `hjkl` walk it, `Enter` picks |
 | `jk` or `Esc` | Back to select |
 | `Ctrl+O` `Ctrl+S` `Alt+S` | Open · Save · Save as |
 | `Ctrl+Z` `Ctrl+Y` | Undo · redo |

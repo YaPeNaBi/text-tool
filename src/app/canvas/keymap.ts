@@ -15,7 +15,7 @@
  *
  *     jk          back to select, before anything can read the `k` (B-KEY-23)
  *     Ctrl        tools, undo, the clipboard, the file, the jump
- *     menu        the four keys an open actions menu answers (B-UI-11)
+ *     menu        the directions and Enter, while the actions menu is open (B-UI-11)
  *     caret       a live caret owns typing (B-DRAW-11)
  *     chain       a line being drawn owns Enter and Escape (B-DRAW-14)
  *     draft       a shape being drawn owns Enter and Escape
@@ -333,20 +333,24 @@ export function installKeyboard(cancelGesture: () => void): () => void {
     // ---- an open menu owns the keyboard (B-UI-11) ----
     //
     // The innermost thing open goes first, which is the order Escape already
-    // follows. Only the four keys the menu answers are taken; everything else
-    // -- Escape above all -- falls through to mean what it always means.
+    // follows. Only the directions and Enter are taken; everything else --
+    // Escape above all -- falls through to mean what it always means.
+    //
+    // The directions are the arrows and, as everywhere in select, `hjkl`
+    // (B-KEY-22): the hand that opened the menu with `e` is on the home row.
     if (store.menuOpen) {
-      if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+      const dir = directionOf(ev.key, store.tool);
+      if (dir !== undefined) {
         ev.preventDefault();
-        store.moveMenu(ev.key === 'ArrowRight' ? 1 : -1);
-        return;
-      }
-      // Down rather than a second Escape, because the menu sits under the
-      // shape as often as over it: down is "put it away", the direction it
-      // came from.
-      if (ev.key === 'ArrowDown') {
-        ev.preventDefault();
-        store.closeMenu();
+        const [dx, dy] = dir;
+        // Sideways steps along a row. Up and down walk the rows, which are
+        // stacked deepest at the bottom (B-UI-11b): down into the lit group, up
+        // back out of the row you are in — from *End 2*'s decorations back to
+        // choosing an end. Off either edge the menu is put away, so down on a
+        // plain option still puts it away as it always did.
+        if (dx !== 0) store.moveMenu(dx);
+        else if (dy > 0) store.descendMenu();
+        else store.leaveMenu();
         return;
       }
       if (ev.key === 'Enter') {
@@ -545,6 +549,16 @@ export function installKeyboard(cancelGesture: () => void): () => void {
         // text tool would be waiting for a click, which is the one thing the
         // hand on the home row is not about to do.
         if (mode === 'text') useEditor.getState().setCaret(store.cursor);
+        return;
+      }
+
+      // `e` is `Ctrl`+`E` without the `Ctrl` (B-UI-11): select does not write,
+      // so the letter is free here, and the menu is the one thing select has to
+      // offer that was still a chord away. `openMenu` decides, as it does for
+      // the chord, whether there is anything to open.
+      if (ev.key === 'e') {
+        ev.preventDefault();
+        store.openMenu();
         return;
       }
     }

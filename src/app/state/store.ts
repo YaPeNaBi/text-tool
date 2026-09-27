@@ -398,8 +398,15 @@ export interface EditorState {
   activateMenu: () => void;
   /** Back out of a submenu; at the top level, close (B-UI-11). */
   leaveMenu: () => void;
-  /** Point at an item without running it: `[]` clears. */
-  aimMenu: (path: readonly number[]) => void;
+  /** Down a row: into the lit group, or off the bottom of the menu (B-UI-11b). */
+  descendMenu: () => void;
+  /**
+   * A click on the item at `path`: a leaf runs, a group opens, and a group
+   * already open shuts again — the pointer's way back (B-UI-11b).
+   */
+  pickMenu: (path: readonly number[]) => void;
+  /** The pointer over the item at `path`, or off the menu with `[]` (B-UI-11b). */
+  pointMenu: (path: readonly number[]) => void;
   /** Redraw the selection in another character set. */
   restyleSelection: (charsetId: string) => void;
   /** Put a decoration on one of a selected line's ends. */
@@ -1155,12 +1162,51 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({ menuPath: next, menuHint: hintFor(get(), next) });
   },
 
-  aimMenu: (path) => {
+  // The rows are stacked, deepest at the bottom, so down and up walk them:
+  // down into the group that is lit, up out of the row you are in. Off either
+  // edge the menu is put away — up past the top the way Escape leaves it, and
+  // down past a leaf the way down always did (B-UI-11).
+  descendMenu: () => {
+    const { node } = levelAt(get());
+    if (node !== null && isGroup(node)) get().activateMenu();
+    else get().closeMenu();
+  },
+
+  pickMenu: (path) => {
+    const node = nodeAt(get(), path);
+    if (node === null) return;
+
+    // A menu item does two things: the thing, and closing the menu. Closing
+    // first covers the refusals too, which never reach `apply` and would
+    // otherwise leave the menu hanging over nothing having happened.
+    if (!isGroup(node)) {
+      get().closeMenu();
+      node.run(get());
+      return;
+    }
+
+    // A group whose row is already showing shuts again, which is the pointer's
+    // way back: *End 2* clicked a second time returns to choosing an end.
+    const current = get().menuPath;
+    const open = current.length > path.length && path.every((at, i) => current[i] === at);
+    const next = open ? [...path] : [...path, 0];
+    set({ menuPath: next, menuHint: hintFor(get(), next) });
+  },
+
+  pointMenu: (path) => {
     if (path.length === 0) {
       set({ menuHint: null });
       return;
     }
-    set({ menuPath: path, menuHint: hintFor(get(), path) });
+    // Only the deepest row follows the pointer. Hovering a row above it lights
+    // up what that item is about but leaves the rows beneath standing: moving
+    // the pointer down to them crosses the row above, and a menu that folded
+    // up under the pointer on the way would be one nobody could reach into.
+    const current = get().menuPath;
+    const deepest =
+      path.length === current.length && path.slice(0, -1).every((at, i) => current[i] === at);
+    if (deepest) set({ menuPath: path, menuHint: hintFor(get(), path) });
+    else set({ menuHint: hintFor(get(), path) });
   },
 
   restyleSelection: (charsetId) => {
@@ -1451,17 +1497,24 @@ function levelAt(state: EditorState): {
   return { level, node: level[path[path.length - 1] ?? 0] ?? null, path };
 }
 
-/** What the item at `path` is about, for the canvas to light up (B-UI-16). */
-function hintFor(state: EditorState, path: readonly number[]): ReadonlySet<CellKey> | null {
+/** The item at `path`, or null when the path runs off the menu. */
+function nodeAt(state: EditorState, path: readonly number[]): MenuNode | null {
   let level = menuFor(state);
   let node: MenuNode | undefined;
 
-  for (const at of path) {
+  for (const [i, at] of path.entries()) {
     node = level[at];
     if (node === undefined) return null;
-    if (isGroup(node)) level = node.items;
+    if (i === path.length - 1) break;
+    if (!isGroup(node)) return null;
+    level = node.items;
   }
-  return node?.hint?.(state) ?? null;
+  return node ?? null;
+}
+
+/** What the item at `path` is about, for the canvas to light up (B-UI-16). */
+function hintFor(state: EditorState, path: readonly number[]): ReadonlySet<CellKey> | null {
+  return nodeAt(state, path)?.hint?.(state) ?? null;
 }
 
 /**

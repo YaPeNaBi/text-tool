@@ -2235,6 +2235,65 @@ test.describe('the menu over a line (B-UI-16)', () => {
     await expect(menu(page)).toHaveCount(0);
   });
 
+  test('e opens it without Ctrl, and up backs out a row at a time (B-UI-11b)', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+    await line(ed);
+    const rows = menu(page).locator('.shape-menu-row');
+
+    await ed.press('e');
+    await expect(menu(page)).toBeVisible();
+    await ed.press('ArrowRight'); // Line end
+    await ed.press('ArrowDown'); // into it
+    await ed.press('ArrowRight'); // End 2
+    await ed.press('ArrowDown'); // into its decorations
+    await expect(rows).toHaveCount(3);
+
+    await ed.press('ArrowUp'); // back to choosing an end
+    await expect(rows).toHaveCount(2);
+    await expect(lit(page)).toHaveText('End 2▸');
+    await ed.press('ArrowUp');
+    await ed.press('ArrowUp');
+    await expect(menu(page)).toHaveCount(0);
+  });
+
+  test('the pointer opens a group with a click and shuts it with another', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+    await line(ed);
+    const rows = menu(page).locator('.shape-menu-row');
+    const button = (name: RegExp) => menu(page).getByRole('button', { name });
+
+    await open(page);
+    await button(/^Line end/).click();
+    await expect(rows).toHaveCount(2);
+    await button(/^End 2/).click();
+    await expect(rows).toHaveCount(3);
+    await expect(button(/^End 2/)).toHaveText('End 2▾');
+
+    await button(/^End 2/).click(); // back to choosing an end
+    await expect(rows).toHaveCount(2);
+
+    // And a right-click on the menu backs out one row, as up does.
+    await button(/^End 1/).click({ button: 'right' });
+    await expect(rows).toHaveCount(1);
+  });
+
+  test('and runs an option with a click', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+    await line(ed);
+    const button = (name: RegExp) => menu(page).getByRole('button', { name });
+
+    await open(page);
+    await button(/^Line end/).click();
+    await button(/^End 2/).click();
+    await button(/^Arrow$/).click();
+
+    await expect(menu(page)).toHaveCount(0);
+    expect(await ed.text()).toBe('──────────▶');
+  });
+
   test('putting an arrow on one end, and taking it off again', async ({ page }) => {
     const ed = new Editor(page);
     await ed.goto();

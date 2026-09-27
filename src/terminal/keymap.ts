@@ -17,7 +17,7 @@
  *     jk          back to select, before anything can read the `k` (B-KEY-23)
  *     Ctrl        tools, undo, the clipboard, the file, the jump
  *     shell       the function keys: this window, not the document
- *     menu        the four keys an open actions menu answers (B-UI-11)
+ *     menu        the directions and Enter, while the actions menu is open (B-UI-11)
  *     caret       a live caret owns typing (B-DRAW-11)
  *     chain       a line being drawn owns Enter and Escape (B-DRAW-14)
  *     draft       a shape being drawn owns Enter and Escape
@@ -325,17 +325,17 @@ export function createKeymap(shell: Shell): Keyboard {
     // ---- an open menu owns the keyboard (B-UI-11) ----
     //
     // The innermost thing open goes first, which is the order Escape follows.
-    // Only the four keys the menu answers are taken; everything else — Escape
-    // above all — falls through to mean what it always means.
+    // Only the directions — arrows and `hjkl` — and Enter are taken; everything
+    // else, Escape above all, falls through to mean what it always means.
     if (store.menuOpen) {
-      if (key === 'ArrowLeft' || key === 'ArrowRight') {
-        store.moveMenu(key === 'ArrowRight' ? 1 : -1);
-        return;
-      }
-      // Down rather than a second Escape, because the menu sits under the shape
-      // as often as over it: down is "put it away", the direction it came from.
-      if (key === 'ArrowDown') {
-        store.closeMenu();
+      const dir = directionOf(key, store.tool);
+      if (dir !== undefined) {
+        const [dx, dy] = dir;
+        // Sideways along a row; down into the lit group and up out of the row
+        // you are in, off either edge putting the menu away (B-UI-11b).
+        if (dx !== 0) store.moveMenu(dx);
+        else if (dy > 0) store.descendMenu();
+        else store.leaveMenu();
         return;
       }
       if (key === 'Enter') {
@@ -502,6 +502,12 @@ export function createKeymap(shell: Shell): Keyboard {
         // The writing mode is entered *at the keyboard*, not at whatever was
         // clicked last: `hjkl` to the cell, `t`, and type.
         if (mode === 'text') useEditor.getState().setCaret(store.cursor);
+        return;
+      }
+
+      // `e` is `Ctrl`+`E` without the `Ctrl`, as in the web build (B-UI-11).
+      if (key === 'e') {
+        store.openMenu();
         return;
       }
 

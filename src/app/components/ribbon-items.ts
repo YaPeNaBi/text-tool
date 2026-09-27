@@ -180,7 +180,8 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
         {
           name: 'Act',
           items: [
-            { keys: ['Ctrl', 'E'], label: 'Actions · line ends, style' },
+            // Bare, since select does not write; `Ctrl`+`E` still works (B-UI-11).
+            { keys: ['e'], label: 'Actions · line ends, style' },
             { keys: ['Ctrl', 'D'], label: 'Duplicate' },
             { keys: ['Delete'], label: 'Erase' },
           ],

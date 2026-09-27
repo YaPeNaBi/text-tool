@@ -211,6 +211,131 @@ describe('keys: bytes into presses', () => {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * The actions menu, walked (B-UI-11, B-UI-11b).
+ *
+ * Here although it is not a substitute, because this keymap is the one a test
+ * can drive without a browser, and the menu's walking lives in the store both
+ * builds call — the pointer's half (`pickMenu`, `pointMenu`) included.
+ */
+describe('the actions menu, walked by key and by pointer', () => {
+  beforeEach(() => {
+    reset();
+    // The menu remembers where it was left (B-UI-13), across tests as much as
+    // across openings, so each case starts from the top.
+    useEditor.setState({ menuOpen: false, menuPath: [0], menuHint: null });
+  });
+
+  /** A line, selected, which offers Style and Line end ▸ End 1 · End 2. */
+  function line(): void {
+    useEditor.getState().loadText('───────────', 'x.txt');
+    useEditor.getState().selectAt({ x: 5, y: 0 });
+  }
+
+  const path = (): readonly number[] => useEditor.getState().menuPath;
+  const open = (): boolean => useEditor.getState().menuOpen;
+
+  it('opens on a bare `e` in select, as Ctrl+E does', () => {
+    const { key } = editor();
+    line();
+    key('e');
+    expect(open()).toBe(true);
+    expect(path()).toEqual([0]);
+  });
+
+  it('but `e` is only a letter under another mode', () => {
+    const { key } = editor();
+    key('b');
+    key('e');
+    expect(open()).toBe(false);
+  });
+
+  it('goes down into a group and back up out of it', () => {
+    const { key } = editor();
+    line();
+    key('e');
+    key('ArrowRight'); // Line end
+    key('ArrowDown'); // into it: End 1
+    key('ArrowRight'); // End 2
+    key('ArrowDown'); // into its decorations
+    expect(path()).toEqual([1, 1, 0]);
+
+    key('ArrowUp'); // back to choosing an end, End 2 still lit
+    expect(path()).toEqual([1, 1]);
+    key('ArrowUp');
+    expect(path()).toEqual([1]);
+    key('ArrowUp'); // off the top
+    expect(open()).toBe(false);
+  });
+
+  it('walks the same with hjkl', () => {
+    const { key } = editor();
+    line();
+    key('e');
+    key('l');
+    key('j');
+    key('l');
+    expect(path()).toEqual([1, 1]);
+    key('k');
+    expect(path()).toEqual([1]);
+  });
+
+  it('puts the menu away on down over a plain option, as down always did', () => {
+    const { key } = editor();
+    line();
+    key('e');
+    key('ArrowRight');
+    key('ArrowDown');
+    key('ArrowDown');
+    key('ArrowDown'); // a decoration is a leaf: nothing deeper
+    expect(open()).toBe(false);
+    expect(useEditor.getState().text()).toBe('───────────'); // and ran nothing
+  });
+
+  it('a click opens a group, and a second click on it goes back', () => {
+    line();
+    useEditor.getState().openMenu();
+    useEditor.getState().pickMenu([1]);
+    expect(path()).toEqual([1, 0]);
+    useEditor.getState().pickMenu([1, 1]);
+    expect(path()).toEqual([1, 1, 0]);
+
+    useEditor.getState().pickMenu([1, 1]); // End 2 again: shut
+    expect(path()).toEqual([1, 1]);
+    useEditor.getState().pickMenu([1]); // Line end again: shut
+    expect(path()).toEqual([1]);
+  });
+
+  it('a click in a row above moves to it, and a click on an option runs it', () => {
+    line();
+    useEditor.getState().openMenu();
+    useEditor.getState().pickMenu([1]);
+    useEditor.getState().pickMenu([1, 0]);
+    useEditor.getState().pickMenu([1, 1]); // the other end, from End 1's row
+    expect(path()).toEqual([1, 1, 0]);
+
+    useEditor.getState().pickMenu([1, 1, 1]); // Arrow
+    expect(open()).toBe(false);
+    expect(useEditor.getState().text()).toBe('──────────▶');
+  });
+
+  it('hovering a row above lights it up without folding the rows beneath', () => {
+    line();
+    useEditor.getState().openMenu();
+    useEditor.getState().pickMenu([1]);
+    useEditor.getState().pickMenu([1, 1]);
+
+    useEditor.getState().pointMenu([1, 0]); // End 1, a row up
+    expect(path()).toEqual([1, 1, 0]);
+    expect(useEditor.getState().menuHint).not.toBeNull();
+
+    useEditor.getState().pointMenu([1, 1, 2]); // along the deepest row: followed
+    expect(path()).toEqual([1, 1, 2]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
 /** A fresh document, and a keymap with a shell that only records. */
 function editor(): {
   key: (key: string, mods?: Partial<Press>) => void;
