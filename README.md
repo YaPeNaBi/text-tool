@@ -54,6 +54,7 @@ change mode — it is the same table the browser build draws as a ribbon.
 | `jk` or `Esc` | Back to select |
 | `Ctrl+O` `Ctrl+S` `Alt+S` | Open · Save · Save as |
 | `Ctrl+Z` `Ctrl+Y` | Undo · redo |
+| `Ctrl+C` `Ctrl+V` | Copy · paste, at the cursor rather than at the mouse |
 | `F1` `F2` `F3` | The key band · the charset · whether connectors follow shapes |
 | **`Ctrl+X`** | **Leave** — it asks first if there is unsaved work |
 
@@ -561,7 +562,7 @@ these differently because a tty cannot report the gesture — see
 | `Ctrl`+`Enter` | everything joined up — lines, and whatever they run into |
 | `Delete` `Backspace` | erase the selection |
 | `Ctrl`+`Z` / `Ctrl`+`Y` | undo / redo |
-| `Ctrl`+`C` / `Ctrl`+`V` | copy what is selected, or all of it · paste as cells |
+| `Ctrl`+`C` / `Ctrl`+`V` | copy what is selected, or all of it · paste as cells, **at the keyboard cursor** — the yellow square, not wherever the mouse is resting. Clicking a cell puts the cursor there, so point-and-paste still works |
 | `Ctrl`+`O` `Ctrl`+`S` `Ctrl`+`Shift`+`S` | open · save · save as |
 | `Alt` while dragging a line | flip the elbow |
 | `[` `]` | eraser brush size |

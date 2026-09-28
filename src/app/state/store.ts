@@ -1565,11 +1565,34 @@ export async function copyDocument(selectionOnly: boolean): Promise<void> {
   }
 }
 
-export async function pasteDocument(at: Cell): Promise<void> {
+/**
+ * Paste lands where the keyboard is, and nowhere else (B-TXT-04).
+ *
+ * It used to prefer the **pointer** — caret, else hover, else the viewport's
+ * corner — and that was wrong for a reason the renderer already had written down
+ * beside the two markers it draws: *the hover says where the pointer happens to
+ * be; the cursor says where the next keystroke will land*. `Ctrl`+`V` is a
+ * keystroke. Anchoring it to the mouse made it the one command in the editor that
+ * ignored the loud yellow square telling you where it was about to act, and put
+ * the characters wherever the hand had left the mouse resting.
+ *
+ * The three cases collapse into one because the keyboard has only ever had one
+ * position (B-UI-10): every write that sets a caret sets the cursor to the same
+ * cell, so `caret ?? cursor` was always just `cursor`. The viewport fallback goes
+ * with them — the cursor always exists, so there is nothing left to fall back
+ * from.
+ *
+ * A cursor scrolled off screen therefore pastes off screen. That is not new and
+ * not specific to pasting: the web build has no camera-follow, so *typing* at an
+ * off-screen cursor is equally invisible, and paste now simply behaves the way
+ * every other key already does. The terminal scrolls to its cursor each frame and
+ * so never shows it at all.
+ */
+export async function pasteDocument(): Promise<void> {
   try {
     const text = await platform().readClipboard();
     if (text === '') return;
-    useEditor.getState().paste(text, at);
+    useEditor.getState().paste(text, useEditor.getState().cursor);
   } catch {
     // Firefox and Safari refuse programmatic clipboard reads; say so rather
     // than failing silently, since Ctrl+V looking broken is worse than a note.

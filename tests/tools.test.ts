@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { ASCII, UNICODE } from '../src/core/charset/charsets.ts';
 import { ck } from '../src/core/geom/cell.ts';
 import { applyDiff, createGrid, type Grid } from '../src/core/grid/grid.ts';
@@ -10,6 +10,8 @@ import { eraseChar, pasteDiff, typeChar } from '../src/core/stamp/text.ts';
 import { handleAt, handlesOf, resizeBoxDiff, resizeRect } from '../src/core/transform/resize.ts';
 import { convertCharset } from '../src/core/transform/convert.ts';
 import { History } from '../src/core/history/history.ts';
+import { pasteDocument, useEditor } from '../src/app/state/store.ts';
+import { installPlatform } from '../src/platform/index.ts';
 
 function gridFrom(art: string): Grid {
   const grid = createGrid();
@@ -298,5 +300,81 @@ describe('history coalescing (B-HIST-02)', () => {
 
     history.undo(grid);
     expect(toText(grid)).toBe('a');
+  });
+});
+
+/**
+ * Where a paste lands (B-TXT-04).
+ *
+ * The rule is one line — the keyboard's cell — but it replaced a three-step
+ * fallback that preferred the *pointer*, so what is worth pinning is the case
+ * that changed: a mouse resting somewhere else must not win.
+ */
+describe('paste anchoring (B-TXT-04)', () => {
+  /** A platform whose only job is to hold a clipboard. */
+  const withClipboard = (text: string): void => {
+    installPlatform({
+      id: 'terminal',
+      limitation: null,
+      canSaveInPlace: () => false,
+      openFile: () => Promise.resolve(null),
+      saveFile: () => Promise.resolve(null),
+      saveFileAs: () => Promise.resolve(null),
+      readClipboard: () => Promise.resolve(text),
+      writeClipboard: () => Promise.resolve(),
+      recentFiles: () => Promise.resolve([]),
+      onMenuCommand: () => undefined,
+    });
+  };
+
+  beforeEach(() => {
+    useEditor.getState().clearAll();
+    useEditor.getState().setTool('select');
+    useEditor.getState().setHover(null);
+    useEditor.getState().setCursor({ x: 0, y: 0 });
+  });
+
+  it('lands at the keyboard cursor', async () => {
+    withClipboard('ab');
+    useEditor.getState().setCursor({ x: 4, y: 2 });
+
+    await pasteDocument();
+
+    expect(useEditor.getState().grid.get(ck(4, 2))).toBe('a');
+    expect(useEditor.getState().grid.get(ck(5, 2))).toBe('b');
+  });
+
+  it('ignores where the mouse happens to be resting', async () => {
+    // The whole point of the change. The hover is *only* set by the pointer
+    // moving; a click sets the cursor as well, so point-and-paste still works —
+    // what no longer counts is hovering without clicking.
+    withClipboard('ab');
+    useEditor.getState().setCursor({ x: 4, y: 2 });
+    useEditor.getState().setHover({ x: 30, y: 9 });
+
+    await pasteDocument();
+
+    expect(useEditor.getState().grid.get(ck(4, 2))).toBe('a');
+    expect(useEditor.getState().grid.has(ck(30, 9))).toBe(false);
+  });
+
+  it('lands at the caret while writing, the caret being the cursor (B-UI-10)', async () => {
+    withClipboard('ab');
+    useEditor.getState().setTool('text');
+    useEditor.getState().setCaret({ x: 7, y: 3 });
+    useEditor.getState().setHover({ x: 30, y: 9 });
+
+    await pasteDocument();
+
+    expect(useEditor.getState().grid.get(ck(7, 3))).toBe('a');
+  });
+
+  it('selects what landed, wherever it landed', async () => {
+    withClipboard('ab');
+    useEditor.getState().setCursor({ x: 4, y: 2 });
+
+    await pasteDocument();
+
+    expect(useEditor.getState().selection?.bounds).toEqual({ x: 4, y: 2, w: 2, h: 1 });
   });
 });

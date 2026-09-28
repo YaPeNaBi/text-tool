@@ -37,7 +37,6 @@ import {
 import { CHARSETS } from '../core/charset/charsets.ts';
 import { ARROWS, directionOf, strideBy } from '../app/canvas/steps.ts';
 import { TOOLS, toolForKey, toolForMode } from '../app/tools.ts';
-import type { Cell } from '../core/geom/cell.ts';
 import type { Press } from './keys.ts';
 
 /**
@@ -138,14 +137,6 @@ export function createKeymap(shell: Shell): Keyboard {
     if (store.tool !== 'text') return;
     if (store.caret === null) store.setCaret(store.cursor);
     useEditor.getState().typeAt('j');
-  };
-
-  /** Where a paste lands: the caret, else the pointer, else the viewport corner. */
-  const pasteAnchor = (): Cell => {
-    const store = useEditor.getState();
-    if (store.caret !== null) return store.caret;
-    if (store.hover !== null) return store.hover;
-    return { x: Math.floor(store.camera.ox), y: Math.floor(store.camera.oy) };
   };
 
   /**
@@ -262,7 +253,7 @@ export function createKeymap(shell: Shell): Keyboard {
           void copyDocument(store.selection !== null);
           return;
         case 'v':
-          void pasteDocument(pasteAnchor());
+          void pasteDocument();
           return;
         case 'a':
           store.setTool('select');

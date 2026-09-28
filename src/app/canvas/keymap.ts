@@ -52,7 +52,6 @@ import {
 } from '../state/store.ts';
 import { toolForKey, toolForMode } from '../tools.ts';
 import { ARROWS, directionOf, strideBy } from './steps.ts';
-import type { Cell } from '../../core/geom/cell.ts';
 
 /**
  * How close two taps of Shift have to be to count as one gesture. The platform
@@ -133,14 +132,6 @@ export function installKeyboard(cancelGesture: () => void): () => void {
     if (el === null) return false;
     const tag = el.tagName;
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-  };
-
-  /** Where a paste lands: the caret, else the pointer, else the viewport corner. */
-  const pasteAnchor = (): Cell => {
-    const store = useEditor.getState();
-    if (store.caret !== null) return store.caret;
-    if (store.hover !== null) return store.hover;
-    return { x: Math.floor(store.camera.ox), y: Math.floor(store.camera.oy) };
   };
 
   const onKeyDown = (ev: KeyboardEvent): void => {
@@ -271,7 +262,7 @@ export function installKeyboard(cancelGesture: () => void): () => void {
         void copyDocument(!ev.shiftKey && store.selection !== null);
       } else if (key === 'v') {
         ev.preventDefault();
-        void pasteDocument(pasteAnchor());
+        void pasteDocument();
       } else if (key === 'a') {
         ev.preventDefault();
         store.setTool('select');
