@@ -77,6 +77,8 @@ import { travellingWith } from '../../core/derive/gather.ts';
 import { labelBoundsOf, textBlockAt } from '../../core/derive/label.ts';
 import type { Plan } from '../../core/ops/plan.ts';
 import { convertCharset } from '../../core/transform/convert.ts';
+import { planBanner } from '../../core/ops/banner.ts';
+import { BANNER_STYLES, styleFor } from '../../core/text/banner.ts';
 import { toText } from '../../core/io/text.ts';
 import { DEFAULT_FILENAME, platform } from '../../platform/index.ts';
 import {
@@ -131,6 +133,21 @@ export interface MenuAction {
    * "End 1" and "End 2" mean nothing until you can see which end is which.
    */
   hint?: (state: EditorState) => ReadonlySet<CellKey> | null;
+  /**
+   * What this item would *do*, drawn on the canvas before it is chosen.
+   *
+   * The step past `hint`. Lighting up the cells an item is about answers
+   * "which one is End 2"; it cannot answer "what does Shade look like", and a
+   * list of font names is a list of words nobody can picture. So an item may
+   * hand back the diff it would apply, and the canvas draws it as a preview —
+   * the same overlay a half-finished drag uses (`gesture.ts`), against the same
+   * unmodified grid, so pointing at a font is exactly as uncommitted as holding
+   * a box gesture open.
+   *
+   * Optional, and most items do not want it: an extra column or a line end is
+   * its own explanation, and a preview of one would be motion for its own sake.
+   */
+  preview?: (state: EditorState) => CellDiff | null;
 }
 
 /** A thing the menu can open. */
@@ -148,6 +165,88 @@ export function isGroup(node: MenuNode): node is MenuGroup {
 }
 
 /**
+ * How many items of one row are on screen at once (B-UI-17).
+ *
+ * The menu is anchored over the shape it acts on and the rows run sideways, so a
+ * row that kept growing would run off the canvas — and in the terminal, off the
+ * window. Five is the number that still fits beside a small box at eighty
+ * columns, and it is enough that the three shorter menus in the editor never
+ * notice the limit exists.
+ */
+export const MENU_WINDOW = 5;
+
+export interface MenuWindow {
+  items: readonly MenuNode[];
+  /** Index in the full row of the first item shown, for keying and clicks. */
+  from: number;
+  /** Whether the row carries on past either end, so the view can say so. */
+  before: boolean;
+  after: boolean;
+}
+
+/**
+ * The slice of a row to draw, given which item is lit.
+ *
+ * Scrolls rather than paginates: the highlight sits in the middle and the row
+ * slides under it, so one press of an arrow moves one item. Paging would move
+ * five at a time and leave the highlight jumping to an edge, which is a worse
+ * answer to the same problem — this menu is walked one step at a time by design
+ * (B-UI-11), and the window should not have a rhythm of its own.
+ *
+ * Clamped at both ends rather than centred absolutely, so the first and last
+ * items are reachable without the window running off into blanks. `moveMenu`
+ * wraps, so stepping off the end lands on the first item and the window returns
+ * to the start with it.
+ */
+/**
+ * The area the menu must not cover: the selection, and whatever it is previewing.
+ *
+ * The menu has always sat clear of the shape it acts on — covering the thing you
+ * are deciding about is the one thing it must not do. A preview makes that rule
+ * bigger rather than different: five rows of banner letters grow *down* from a
+ * one-row selection, straight into where the menu would otherwise go, so the
+ * menu has to step below them.
+ *
+ * Only the cells being **written** count. A diff also carries the erases that
+ * clear the old text, and those are cells about to become blank — keeping the
+ * menu clear of blankness would push it away for no reason.
+ */
+export function menuClear(state: EditorState): Rect {
+  const base = state.selection?.bounds ?? { x: state.cursor.x, y: state.cursor.y, w: 1, h: 1 };
+  const preview = state.menuOpen ? state.menuPreview : null;
+  if (preview === null) return base;
+
+  const written: CellKey[] = [];
+  for (const [key, value] of preview) if (value !== null) written.push(key);
+
+  const shown = boundsOf(written);
+  if (shown === null) return base;
+
+  const x = Math.min(base.x, shown.x);
+  const y = Math.min(base.y, shown.y);
+  return {
+    x,
+    y,
+    w: Math.max(base.x + base.w, shown.x + shown.w) - x,
+    h: Math.max(base.y + base.h, shown.y + shown.h) - y,
+  };
+}
+
+export function windowOf(row: readonly MenuNode[], at: number): MenuWindow {
+  if (row.length <= MENU_WINDOW) {
+    return { items: row, from: 0, before: false, after: false };
+  }
+  const half = Math.floor(MENU_WINDOW / 2);
+  const from = Math.max(0, Math.min(at - half, row.length - MENU_WINDOW));
+  return {
+    items: row.slice(from, from + MENU_WINDOW),
+    from,
+    before: from > 0,
+    after: from + MENU_WINDOW < row.length,
+  };
+}
+
+/**
  * What the menu offers, worked out from what is selected.
  *
  * Here rather than in the component because the keyboard drives this menu as
@@ -162,6 +261,24 @@ export function isGroup(node: MenuNode): node is MenuGroup {
 export function menuFor(state: EditorState): readonly MenuNode[] {
   const { grid, selection } = state;
   if (selection === null) return [];
+
+  // Text has one thing worth asking about, and it is the one thing a list of
+  // words cannot convey — so every item here carries a `preview` (B-UI-16a).
+  if (selection.kind === 'text') {
+    return [
+      {
+        label: 'Font',
+        title: 'Set this text in huge letters',
+        items: BANNER_STYLES.map((style) => ({
+          label: style.label,
+          title: style.title,
+          run: (s: EditorState) => { s.setFont(style.id); },
+          preview: (s: EditorState) =>
+            s.selection === null ? null : planBanner(s.grid, s.selection, style).diff,
+        })),
+      },
+    ];
+  }
 
   if (canDivide(selection)) {
     return [
@@ -304,6 +421,8 @@ export interface EditorState {
   menuPath: readonly number[];
   /** Cells an item is about, lit up while it is pointed at (B-UI-16). */
   menuHint: ReadonlySet<CellKey> | null;
+  /** What the pointed-at item would draw, shown before it is chosen (B-UI-16a). */
+  menuPreview: CellDiff | null;
   canUndo: boolean;
   canRedo: boolean;
 
@@ -411,6 +530,8 @@ export interface EditorState {
   restyleSelection: (charsetId: string) => void;
   /** Put a decoration on one of a selected line's ends. */
   setLineEnd: (which: number, end: LineEnd) => void;
+  /** Redraw the selected text as huge letters, in the named style. */
+  setFont: (id: string) => void;
   addColumn: () => void;
   addRow: () => void;
   /** Widen or deepen the track beside a separator (tables §7). */
@@ -458,6 +579,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   menuOpen: false,
   menuPath: [0],
   menuHint: null,
+  menuPreview: null,
   canUndo: false,
   canRedo: false,
 
@@ -1104,7 +1226,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const state = get();
     const items = menuFor(state);
     if (items.length === 0) {
-      set({ menuOpen: false, menuHint: null });
+      set({ menuOpen: false, menuHint: null, menuPreview: null });
       return;
     }
 
@@ -1116,10 +1238,10 @@ export const useEditor = create<EditorState>((set, get) => ({
     // line has nothing in common with the menu over a box, so a path remembered
     // in one is meaningless in the other.
     const path = reaches(items, state.menuPath) ? state.menuPath : [0];
-    set({ menuOpen: true, menuPath: path, menuHint: hintFor(state, path) });
+    set({ menuOpen: true, menuPath: path, ...aimedAt(state, path) });
   },
 
-  closeMenu: () => set({ menuOpen: false, menuHint: null }),
+  closeMenu: () => set({ menuOpen: false, menuHint: null, menuPreview: null }),
 
   moveMenu: (delta) => {
     const { level, path } = levelAt(get());
@@ -1130,7 +1252,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const at = path[path.length - 1] ?? 0;
     const step = (((at + delta) % level.length) + level.length) % level.length;
     const next = [...path.slice(0, -1), step];
-    set({ menuPath: next, menuHint: hintFor(get(), next) });
+    set({ menuPath: next, ...aimedAt(get(), next) });
   },
 
   activateMenu: () => {
@@ -1141,7 +1263,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     // is what makes the menu one thing to learn rather than two.
     if (isGroup(node)) {
       const next = [...path, 0];
-      set({ menuPath: next, menuHint: hintFor(get(), next) });
+      set({ menuPath: next, ...aimedAt(get(), next) });
       return;
     }
 
@@ -1159,7 +1281,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       return;
     }
     const next = path.slice(0, -1);
-    set({ menuPath: next, menuHint: hintFor(get(), next) });
+    set({ menuPath: next, ...aimedAt(get(), next) });
   },
 
   // The rows are stacked, deepest at the bottom, so down and up walk them:
@@ -1190,12 +1312,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     const current = get().menuPath;
     const open = current.length > path.length && path.every((at, i) => current[i] === at);
     const next = open ? [...path] : [...path, 0];
-    set({ menuPath: next, menuHint: hintFor(get(), next) });
+    set({ menuPath: next, ...aimedAt(get(), next) });
   },
 
   pointMenu: (path) => {
     if (path.length === 0) {
-      set({ menuHint: null });
+      set({ menuHint: null, menuPreview: null });
       return;
     }
     // Only the deepest row follows the pointer. Hovering a row above it lights
@@ -1205,8 +1327,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     const current = get().menuPath;
     const deepest =
       path.length === current.length && path.slice(0, -1).every((at, i) => current[i] === at);
-    if (deepest) set({ menuPath: path, menuHint: hintFor(get(), path) });
-    else set({ menuHint: hintFor(get(), path) });
+    if (deepest) set({ menuPath: path, ...aimedAt(get(), path) });
+    else set({ ...aimedAt(get(), path) });
   },
 
   restyleSelection: (charsetId) => {
@@ -1218,6 +1340,22 @@ export const useEditor = create<EditorState>((set, get) => ({
       { diff: convertCharset(grid, cs, selection.cells), selection },
       { keepSelection: true },
     );
+  },
+
+  /**
+   * Set the selected text in one of the banner fonts (B-UI-16a).
+   *
+   * By id rather than by the style object, so the menu and this agree through
+   * the same table `BANNER_STYLES` rather than by passing functions around —
+   * and so a font that is gone by the time the key lands is a no-op rather
+   * than a crash.
+   */
+  setFont: (id) => {
+    const { grid, selection } = get();
+    if (selection === null) return;
+    const style = styleFor(id);
+    if (style === undefined) return;
+    get().runPlan(planBanner(grid, selection, style), { keepSelection: true });
   },
 
   setLineEnd: (which, end) => {
@@ -1512,9 +1650,27 @@ function nodeAt(state: EditorState, path: readonly number[]): MenuNode | null {
   return node ?? null;
 }
 
-/** What the item at `path` is about, for the canvas to light up (B-UI-16). */
-function hintFor(state: EditorState, path: readonly number[]): ReadonlySet<CellKey> | null {
-  return nodeAt(state, path)?.hint?.(state) ?? null;
+/**
+ * What the item at `path` shows while it is pointed at (B-UI-16, B-UI-16a).
+ *
+ * Both halves in one walk, because they are one question asked of one item and
+ * splitting them would mean finding that item twice on every keystroke — and
+ * a preview is a whole `planBanner` call, not a set lookup.
+ *
+ * A group previews nothing. Opening one is not choosing anything, and drawing
+ * its first child's preview the moment the group lit up would show a change the
+ * user has not aimed at yet.
+ */
+function aimedAt(
+  state: EditorState,
+  path: readonly number[],
+): { menuHint: ReadonlySet<CellKey> | null; menuPreview: CellDiff | null } {
+  const node = nodeAt(state, path);
+  if (node === null) return { menuHint: null, menuPreview: null };
+  return {
+    menuHint: node.hint?.(state) ?? null,
+    menuPreview: isGroup(node) ? null : node.preview?.(state) ?? null,
+  };
 }
 
 /**

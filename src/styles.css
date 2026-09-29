@@ -327,3 +327,11 @@ button.active .hint {
   opacity: 0.55;
   font-size: 10px;
 }
+
+/* The row carries on past the edge of the window (B-UI-17). */
+.shape-menu .more.edge {
+  margin: 0;
+  align-self: center;
+  font-size: 12px;
+  opacity: 0.5;
+}

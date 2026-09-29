@@ -40,7 +40,7 @@ import {
   WRAP_OFF,
   WRAP_ON,
 } from './ansi.ts';
-import { follow, layoutOf, paint, type Prompt } from './frame.ts';
+import { follow, layoutOf, menuHitsFor, paint, type Prompt } from './frame.ts';
 import { createDecoder, type Press } from './keys.ts';
 import { createKeymap } from './keymap.ts';
 import { createPointer } from './pointer.ts';
@@ -338,7 +338,9 @@ function main(): void {
     } else if (dialog !== null) {
       // A click while a dialog is open would move a cursor nobody can see.
     } else if (input.kind === 'mouse') {
-      pointer.press(input.click, layout.view);
+      // Worked out now rather than remembered from the last frame: two mouse
+      // events can arrive in one read, before any frame has run.
+      pointer.press(input.click, layout.view, menuHitsFor(screen.width, layout.view));
     } else {
       pointer.scroll(input.wheel, layout.view);
     }

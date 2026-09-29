@@ -33,7 +33,14 @@ import { handlesOf } from '../core/transform/resize.ts';
 import { COLORS } from '../app/canvas/palette.ts';
 import { previewOf, type Drag } from '../app/canvas/gesture.ts';
 import { groupsFor, type Group, type Item } from '../app/components/ribbon-items.ts';
-import { useEditor } from '../app/state/store.ts';
+import {
+  isGroup,
+  menuClear,
+  menuFor,
+  useEditor,
+  windowOf,
+  type MenuNode,
+} from '../app/state/store.ts';
 import { TOOLS } from '../app/tools.ts';
 import { colorOf, CURSOR_BAR, CURSOR_BLOCK, type Screen } from './ansi.ts';
 import type { Viewport } from './pointer.ts';
@@ -157,6 +164,25 @@ export interface Cursor {
   shape: string;
 }
 
+/**
+ * Where one menu item was drawn, so a click can find it.
+ *
+ * The web build needs nothing like this: a DOM button knows it was clicked. A
+ * terminal has only a row and a column, so the one place that knows the menu's
+ * geometry — the code that just drew it — has to write it down.
+ */
+export interface MenuHit {
+  row: number;
+  /** Inclusive first column, exclusive last. */
+  from: number;
+  to: number;
+  path: readonly number[];
+  label: string;
+  /** The highlighted item of its row, and whether its own row is showing. */
+  lit: boolean;
+  open: boolean;
+}
+
 export function paint({ screen, layout, drag, prompt }: FrameInput): Cursor | null {
   const store = useEditor.getState();
   screen.clear();
@@ -176,15 +202,19 @@ export function paint({ screen, layout, drag, prompt }: FrameInput): Cursor | nu
     brush: store.brush,
     hover: store.hover,
     cursor: store.cursor,
+    menu: store.menuOpen ? store.menuPreview : null,
   });
 
   drawToolbar(screen, store);
   const cursor = drawCanvas(screen, view, store, preview);
+  drawMenu(screen, view);
   if (layout.bandRows > 0) drawBand(screen, layout, store);
   if (prompt === null) drawStatus(screen, layout, store);
   else drawPrompt(screen, layout, prompt);
 
-  return prompt === null ? cursor : { x: promptCaret(screen, prompt), y: layout.statusRow, shape: CURSOR_BAR };
+  return prompt === null
+    ? cursor
+    : { x: promptCaret(screen, prompt), y: layout.statusRow, shape: CURSOR_BAR };
 }
 
 type Store = ReturnType<typeof useEditor.getState>;
@@ -290,6 +320,135 @@ function drawCanvas(screen: Screen, view: Viewport, store: Store, preview: Previ
 
 function samePlace(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
   return a.x === b.x && a.y === b.y;
+}
+
+// ---- the actions menu ------------------------------------------------------
+
+/**
+ * The menu the web build draws as a floating strip (`ShapeMenu.tsx`).
+ *
+ * It was missing here until the font menu needed it, and its absence was the
+ * quiet kind: `e` opened a menu the keys would happily walk and nothing on
+ * screen said so. Everything about *what* it offers and *where the highlight
+ * is* comes from the store, exactly as the web one does, so the two cannot
+ * disagree about what the item at index 1 means.
+ *
+ * Anchored under the selection and flipped above it when there is no room —
+ * the same rule as the web build, for the same reason: the menu must never
+ * cover the thing it acts on, which here is often the very text being previewed
+ * in a font.
+ */
+/**
+ * Where every item of the open menu sits on screen.
+ *
+ * Derived, never remembered. The first version of this cached what the last
+ * frame drew, and a pty test found the hole in that immediately: two mouse
+ * events arriving in one read are handled before any frame runs, so the click
+ * was tested against the geometry of a menu that did not exist yet. Computing it
+ * on demand costs a few dozen string lengths and cannot be stale.
+ *
+ * Both callers read the same list — `drawMenu` to paint it, the shell to decide
+ * what a click landed on — so what is on screen and what is clickable are one
+ * fact rather than two that have to agree.
+ */
+export function menuHitsFor(width: number, view: Viewport): MenuHit[] {
+  const store = useEditor.getState();
+  const hits: MenuHit[] = [];
+  if (!store.menuOpen || store.selection === null) return hits;
+
+  const items = menuFor(store);
+  if (items.length === 0) return hits;
+
+  const rows = rowsOf(items, store.menuPath);
+  const ox = Math.floor(store.camera.ox);
+  const oy = Math.floor(store.camera.oy);
+  const clear = menuClear(store);
+
+  // Under the shape if it fits, over it if not, clamped into the canvas either
+  // way — a menu half off the top would be worse than one sitting on the shape.
+  // `menuClear` is the selection *plus whatever is being previewed*, so the menu
+  // steps below five rows of banner letters rather than landing on them.
+  const below = clear.y + clear.h - oy + view.top + 1;
+  const above = clear.y - oy + view.top - rows.length;
+  let top = below + rows.length <= view.top + view.height ? below : above;
+  top = Math.max(view.top, Math.min(top, view.top + view.height - rows.length));
+
+  const left = Math.max(0, Math.min(clear.x - ox, width - 24));
+
+  rows.forEach((row, depth) => {
+    const y = top + depth;
+    if (y < view.top || y >= view.top + view.height) return;
+
+    const shown = windowOf(row, store.menuPath[depth] ?? 0);
+    let col = left + (shown.before ? 3 : 0);
+
+    shown.items.forEach((item, i) => {
+      const at = shown.from + i;
+      const lit = store.menuPath.length > depth && store.menuPath[depth] === at;
+      const open = lit && store.menuPath.length > depth + 1;
+      const label = ` ${item.label}${isGroup(item) ? (open ? ' ▾' : ' ▸') : ''} `;
+      hits.push({
+        row: y,
+        from: col,
+        to: col + label.length,
+        path: [...store.menuPath.slice(0, depth), at],
+        label,
+        lit,
+        open,
+      });
+      col += label.length;
+    });
+  });
+  return hits;
+}
+
+/**
+ * The menu the web build draws as a floating strip (`ShapeMenu.tsx`).
+ *
+ * It was missing here until the font menu needed it, and its absence was the
+ * quiet kind: `e` opened a menu the keys would happily walk and nothing on
+ * screen said so. Everything about *what* it offers and *where the highlight is*
+ * comes from the store, exactly as the web one does, so the two cannot disagree
+ * about what the item at index 1 means.
+ */
+function drawMenu(screen: Screen, view: Viewport): void {
+  const hits = menuHitsFor(screen.width, view);
+  if (hits.length === 0) return;
+
+  const store = useEditor.getState();
+  const items = menuFor(store);
+  const rows = rowsOf(items, store.menuPath);
+
+  // `‹` and `›` say the row carries on, which is the only thing standing between
+  // five of seven fonts and a list that looks complete (B-UI-17).
+  rows.forEach((row, depth) => {
+    const mine = hits.filter((h) => h.path.length === depth + 1);
+    const first = mine[0];
+    const last = mine[mine.length - 1];
+    if (first === undefined || last === undefined) return;
+
+    const shown = windowOf(row, store.menuPath[depth] ?? 0);
+    if (shown.before) screen.text(first.from - 3, first.row, ' ‹ ', C.dim, C.chrome);
+    if (shown.after) screen.text(last.to, last.row, ' › ', C.dim, C.chrome);
+  });
+
+  for (const hit of hits) {
+    screen.text(hit.from, hit.row, hit.label, hit.lit ? C.page : C.text, hit.lit ? C.cursor : C.chrome, hit.lit);
+  }
+}
+
+/** The rows on screen: the top level, then each group opened from it. */
+function rowsOf(items: readonly MenuNode[], path: readonly number[]): MenuNode[][] {
+  const rows: MenuNode[][] = [[...items]];
+  let level = items;
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const step = level[path[i] ?? 0];
+    if (step === undefined || !isGroup(step)) break;
+    rows.push([...step.items]);
+    level = step.items;
+  }
+  return rows;
 }
 
 // ---- the toolbar -----------------------------------------------------------

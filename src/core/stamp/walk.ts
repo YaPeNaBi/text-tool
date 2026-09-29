@@ -28,7 +28,8 @@
 
 import { ck, unck, type Cell, type CellKey } from '../geom/cell.ts';
 import { E, N, S, W, glyphFor, opposite, type Charset, type Dir } from '../charset/charsets.ts';
-import { maskOf, neighbourMask, type CellDiff, type Grid } from '../grid/grid.ts';
+import { type CellDiff, type Grid } from '../grid/grid.ts';
+import { inheritedMask } from './merge.ts';
 
 /** `\` leans the way a top-left-to-bottom-right step does; `/` the other way. */
 function slash(dx: number, dy: number): string {
@@ -140,7 +141,7 @@ export function stampWalk(
     }
     if (mask === 0) continue;
 
-    const glyph = glyphFor(mask | maskOf(grid, x, y) | neighbourMask(grid, x, y, own), cs);
+    const glyph = glyphFor(mask | inheritedMask(grid, x, y, own), cs);
     if (glyph !== '') diff.set(key, glyph);
   }
   return diff;

@@ -19,7 +19,8 @@ import {
   type Charset,
   type Dir,
 } from '../charset/charsets.ts';
-import { maskOf, neighbourMask, type CellDiff, type Grid } from '../grid/grid.ts';
+import { type CellDiff, type Grid } from '../grid/grid.ts';
+import { inheritedMask } from './merge.ts';
 
 /** Which way the elbow turns. `auto` follows the longer axis first. */
 export type Elbow = 'auto' | 'h-first' | 'v-first';
@@ -179,9 +180,7 @@ export function stampPolyline(
     }
 
     const mask =
-      (geometry.get(key) ?? 0) |
-      maskOf(grid, cell.x, cell.y) |
-      neighbourMask(grid, cell.x, cell.y, own);
+      (geometry.get(key) ?? 0) | inheritedMask(grid, cell.x, cell.y, own);
 
     const glyph = glyphFor(mask, cs);
     if (glyph !== '') diff.set(key, glyph);

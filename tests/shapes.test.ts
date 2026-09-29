@@ -11,6 +11,7 @@ import { applyDiff, createGrid, type Grid } from '../src/core/grid/grid.ts';
 import { fromText, toText } from '../src/core/io/text.ts';
 import { stampBox } from '../src/core/stamp/box.ts';
 import { ellipseCells, stampEllipse } from '../src/core/stamp/ellipse.ts';
+import { stampPath } from '../src/core/stamp/path.ts';
 import { convertCharset } from '../src/core/transform/convert.ts';
 import { resizeBoxDiff } from '../src/core/transform/resize.ts';
 import { recognize } from '../src/core/recognize/recognize.ts';
@@ -283,5 +284,82 @@ describe('candidate ranking (B-REC-10)', () => {
 
   it('gives an empty cell nothing at all (B-REC-07)', () => {
     expect(candidatesAt(createGrid(), 4, 4)).toEqual([]);
+  });
+});
+
+/**
+ * A stamp inherits what a cell *connects to*, not what it claims (B-DRAW-07a).
+ *
+ * A straight run does not know where it ends — the last cell of `─────` is a `─`
+ * like every other, declaring east as well as west — so the old glyph's arms
+ * cannot be taken on trust when something lands on top of them.
+ */
+describe('merging onto the end of a line (B-DRAW-07a)', () => {
+  const lineAcross = (grid: Grid, toX: number): void => {
+    applyDiff(grid, stampPath(grid, { x: 2, y: 4 }, { x: toX, y: 4 }, UNICODE, {}));
+  };
+
+  it('a box meeting a line end joins it with a T, not a cross', () => {
+    const grid = createGrid();
+    lineAcross(grid, 12);
+    applyDiff(grid, stampBox(grid, { x: 12, y: 1, w: 8, h: 7 }, UNICODE));
+
+    expect(grid.get(ck(12, 4))).toBe('┤');
+  });
+
+  it('and the order it was drawn in makes no difference', () => {
+    // The whole complaint: box-then-line already gave `┤`, line-then-box gave
+    // `┼`, and the same two shapes in the same two places must not depend on
+    // which one was drawn first.
+    const boxFirst = createGrid();
+    applyDiff(boxFirst, stampBox(boxFirst, { x: 12, y: 1, w: 8, h: 7 }, UNICODE));
+    lineAcross(boxFirst, 12);
+
+    const lineFirst = createGrid();
+    lineAcross(lineFirst, 12);
+    applyDiff(lineFirst, stampBox(lineFirst, { x: 12, y: 1, w: 8, h: 7 }, UNICODE));
+
+    expect(toText(lineFirst)).toBe(toText(boxFirst));
+  });
+
+  it('a line that really crosses the border still crosses', () => {
+    const grid = createGrid();
+    lineAcross(grid, 18); // straight through, out the far side
+    applyDiff(grid, stampBox(grid, { x: 12, y: 1, w: 8, h: 7 }, UNICODE));
+
+    expect(grid.get(ck(12, 4))).toBe('┼');
+  });
+
+  it('a circle meeting a line end joins it the same way', () => {
+    const grid = createGrid();
+    applyDiff(grid, stampPath(grid, { x: 0, y: 5 }, { x: 8, y: 5 }, UNICODE, {}));
+    applyDiff(grid, stampEllipse(grid, { x: 8, y: 1, w: 11, h: 9 }, UNICODE));
+
+    expect(grid.get(ck(8, 5))).toBe('┤');
+  });
+
+  it('a line ending on another line end makes a corner, not a T', () => {
+    const grid = createGrid();
+    lineAcross(grid, 8);
+    applyDiff(grid, stampPath(grid, { x: 8, y: 0 }, { x: 8, y: 4 }, UNICODE, {}));
+
+    expect(grid.get(ck(8, 4))).toBe('┘');
+  });
+
+  it('but an arm pointing at a slash is kept, being half of a link', () => {
+    // The exception, and the case that caught the first version of this fix.
+    // A circle's ring runs down its side as `│` and turns into a `\` shoulder;
+    // the slash declares no arms, so the join is a **link** (B-CONN-08) and the
+    // `│`'s loose arm is half of it. Drawing a connector out of that cell must
+    // not take the arm with it, or the ring stops being a ring.
+    const grid = createGrid();
+    applyDiff(grid, stampEllipse(grid, { x: 0, y: 0, w: 9, h: 9 }, UNICODE));
+    expect(grid.get(ck(8, 6))).toBe('/'); // the shoulder it has to reach
+
+    applyDiff(grid, stampPath(grid, { x: 8, y: 5 }, { x: 16, y: 5 }, UNICODE, {}));
+
+    // `├`, keeping south — not `└`, which would cut the ring below it.
+    expect(grid.get(ck(8, 5))).toBe('├');
+    expect(candidatesAt(grid, 4, 0).some((c) => c.kind === 'ellipse')).toBe(true);
   });
 });

@@ -80,6 +80,15 @@ export interface PreviewInput {
   hover: Cell | null;
   /** Where the keyboard is, which aims a draft or a chain when the pointer is not. */
   cursor: Cell;
+  /**
+   * What the actions menu is offering, drawn before it is chosen (B-UI-16a).
+   *
+   * A third source of the same overlay, after the pointer and the keyboard, and
+   * it belongs here rather than in either renderer for the reason the other two
+   * do: a preview is a preview, and both builds already draw whatever this
+   * function returns. One field, two renderings.
+   */
+  menu: CellDiff | null;
 }
 
 export interface Preview {
@@ -126,7 +135,11 @@ export function previewOf(input: PreviewInput): Preview {
   if (pointer.cells !== null) return { ...pointer, brush };
 
   const keys = fromKeyboard(input, draft, chain);
-  return { cells: keys.cells, rect: keys.rect ?? pointer.rect, brush };
+  if (keys.cells !== null) return { cells: keys.cells, rect: keys.rect ?? pointer.rect, brush };
+
+  // Last, because it is the only one of the three that is not a gesture: an open
+  // menu is not being aimed, so anything actually being drawn outranks it.
+  return { cells: input.menu, rect: keys.rect ?? pointer.rect, brush };
 }
 
 /** Centred on the pointer, and never off the left or top of the plane. */

@@ -24,7 +24,14 @@
  * row — the gesture that opened it, undone a step at a time.
  */
 
-import { isGroup, menuFor, useEditor, type MenuNode } from '../state/store.ts';
+import {
+  isGroup,
+  menuClear,
+  menuFor,
+  useEditor,
+  windowOf,
+  type MenuNode,
+} from '../state/store.ts';
 import { cellToScreenX, cellToScreenY, metricsFor } from '../canvas/camera.ts';
 
 /** Clear of the shape's outline, so the menu never covers what it acts on. */
@@ -63,7 +70,7 @@ export function ShapeMenu(): React.JSX.Element | null {
 
   const rows = rowsFor(items, path);
   const m = metricsFor(camera.zoom);
-  const { x, y, h } = selection.bounds;
+  const { x, y, h } = menuClear(useEditor.getState());
   const top = cellToScreenY(y, camera, m);
   const above = top >= HEADROOM;
 
@@ -80,9 +87,16 @@ export function ShapeMenu(): React.JSX.Element | null {
         leaveMenu();
       }}
     >
-      {rows.map((row, depth) => (
+      {rows.map((row, depth) => {
+        // Only as much of the row as fits beside the shape (B-UI-17). The
+        // highlight stays in the middle and the row slides under it, so the
+        // arrow keys still move one item per press.
+        const shown = windowOf(row, path[depth] ?? 0);
+        return (
         <div className="shape-menu-row" key={depth}>
-          {row.map((item, at) => {
+          {shown.before && <span className="more edge" aria-hidden>‹</span>}
+          {shown.items.map((item, i) => {
+            const at = shown.from + i;
             const here = [...path.slice(0, depth), at];
             const lit = path.length > depth && path[depth] === at;
             // Open: its own row is showing beneath, so a click shuts it.
@@ -102,8 +116,10 @@ export function ShapeMenu(): React.JSX.Element | null {
               </button>
             );
           })}
+          {shown.after && <span className="more edge" aria-hidden>›</span>}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

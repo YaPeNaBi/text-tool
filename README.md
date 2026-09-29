@@ -50,7 +50,7 @@ change mode — it is the same table the browser build draws as a ribbon.
 | `hjkl` or the arrow keys | Move |
 | `Space`, then `Enter` | Draw a box or a circle · a line takes a corner per press |
 | `Enter` | With nothing being drawn: select what is under the cursor, again to widen |
-| `e` | The actions menu on the selection — arrows or `hjkl` walk it, `Enter` picks |
+| `e` | The actions menu on the selection — arrows or `hjkl` walk it, `Enter` picks. On a run of **text** it offers fonts, drawn on the canvas as you point at them |
 | `jk` or `Esc` | Back to select |
 | `Ctrl+O` `Ctrl+S` `Alt+S` | Open · Save · Save as |
 | `Ctrl+Z` `Ctrl+Y` | Undo · redo |
@@ -195,11 +195,13 @@ src/
       resize.ts              the refusals, and connectors on a resize
       lattice.ts             add, widen and deepen a column or a row
       typing.ts              typing grows the shape it is inside
+      banner.ts              a run of text, swapped for its picture in a font
     route/
       connectors.ts          lines that follow the shape they are attached to
       astar.ts               the search: A* over (x, y, heading)
       cost.ts                the price list, and the obstacle map
     history/history.ts       undo/redo stack of diffs
+    text/banner.ts           one bitmap alphabet, rendered as several huge fonts
     io/text.ts               toText / fromText
 
   platform/                  the only code allowed to touch files or the clipboard
@@ -541,7 +543,8 @@ these differently because a tty cannot report the gesture — see
 | `Shift`+arrow or `Shift`+`hjkl`, in the box tool | draw a box in one gesture — let go of `Shift` to keep it |
 | `Enter` | commit what the keyboard is drawing, through wherever the cursor has got to |
 | `t`, then type | writes at the keyboard cursor. Click a word first and `t` opens it at the character you clicked |
-| right-click a selection · `Ctrl`+`E` | actions: a box's columns and rows, a line's ends and style |
+| right-click a selection · `Ctrl`+`E` | actions: a box's columns and rows, a line's ends and style, **a run of text's font** |
+| in the font list | pointing at one draws it on the canvas before you choose — arrow keys, or the mouse. A row shows five at a time, with `‹ ›` where it carries on |
 | in that menu: `Enter` | open the highlighted group, or run the highlighted item · `Esc` backs out one level |
 | in that menu: `←` `→` · `Enter` · `↓` | step between the options · run the highlighted one · put it away |
 | drag a table separator | widen or deepen the track beside it |

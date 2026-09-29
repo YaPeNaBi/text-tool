@@ -31,6 +31,7 @@ import { handleAt, resizeRect } from '../core/transform/resize.ts';
 import { brushAt, selectionHas, useEditor } from '../app/state/store.ts';
 import { elbowFor, type Drag } from '../app/canvas/gesture.ts';
 import type { Click, Wheel } from './keys.ts';
+import type { MenuHit } from './frame.ts';
 
 /** Where the canvas sits in the terminal, so a click can be placed on the grid. */
 export interface Viewport {
@@ -43,7 +44,14 @@ export interface Viewport {
 export interface Pointer {
   /** The gesture in flight, for `previewOf`. */
   drag: Drag | null;
-  press(click: Click, view: Viewport): void;
+  /**
+   * `menu` is where the last frame drew the actions menu, empty when none is up.
+   *
+   * The pointer needs it because a terminal click is a row and a column and
+   * nothing else — there is no element under it to ask. The web build gets this
+   * for free from the DOM, which is why only this build has to be told.
+   */
+  press(click: Click, view: Viewport, menu?: readonly MenuHit[]): void;
   scroll(wheel: Wheel, view: Viewport): void;
   /** Escape abandons whatever is in flight, drawing nothing. */
   cancel(): void;
@@ -52,7 +60,7 @@ export interface Pointer {
 export function createPointer(): Pointer {
   const self: Pointer = {
     drag: null,
-    press: (click, view) => press(self, click, view),
+    press: (click, view, menu) => press(self, click, view, menu ?? []),
     scroll: (wheel, view) => scroll(wheel, view),
     cancel: () => {
       self.drag = null;
@@ -75,7 +83,7 @@ function onCanvas(click: Click | Wheel, view: Viewport): boolean {
   return click.row >= view.top && click.row < view.top + view.height;
 }
 
-function press(self: Pointer, click: Click, view: Viewport): void {
+function press(self: Pointer, click: Click, view: Viewport, menu: readonly MenuHit[]): void {
   if (click.action === 'up') {
     release(self, click, view);
     return;
@@ -84,6 +92,17 @@ function press(self: Pointer, click: Click, view: Viewport): void {
     move(self, click, view);
     return;
   }
+
+  // The menu is over the canvas and gets the click first, exactly as a DOM
+  // button would in the web build. Without this the press below would close the
+  // menu and start selecting whatever happened to be underneath it.
+  const hit = menu.find((h) => h.row === click.row && click.col >= h.from && click.col < h.to);
+  if (hit !== undefined) {
+    if (click.button === 'left') useEditor.getState().pickMenu(hit.path);
+    else if (click.button === 'right') useEditor.getState().leaveMenu();
+    return;
+  }
+
   if (!onCanvas(click, view)) return;
 
   const cell = cellOf(click, view);

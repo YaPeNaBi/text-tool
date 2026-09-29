@@ -8,7 +8,8 @@
 
 import { ck, type CellKey, type Rect } from '../geom/cell.ts';
 import { E, N, S, W, glyphFor, type Charset } from '../charset/charsets.ts';
-import { maskOf, neighbourMask, type CellDiff, type Grid } from '../grid/grid.ts';
+import { type CellDiff, type Grid } from '../grid/grid.ts';
+import { inheritedMask } from './merge.ts';
 
 /** Geometric connectivity of a border cell, from its position on the rect. */
 function borderMask(r: Rect, x: number, y: number): number {
@@ -55,8 +56,7 @@ export function stampBox(grid: Grid, r: Rect, cs: Charset): CellDiff {
       const key = ck(x, y);
       if (!own.has(key)) continue;
 
-      const mask =
-        borderMask(r, x, y) | maskOf(grid, x, y) | neighbourMask(grid, x, y, own);
+      const mask = borderMask(r, x, y) | inheritedMask(grid, x, y, own);
       diff.set(key, glyphFor(mask, cs));
     }
   }

@@ -81,6 +81,8 @@ export function CanvasView(): React.JSX.Element {
   const chain = useEditor((s) => s.chain);
   const chainAim = useEditor((s) => s.chainAim);
   const menuHint = useEditor((s) => s.menuHint);
+  const menuPreview = useEditor((s) => s.menuPreview);
+  const menuOpen = useEditor((s) => s.menuOpen);
   const keyCursor = useEditor((s) => s.cursor);
   const draft = useEditor((s) => s.draft);
 
@@ -157,6 +159,10 @@ export function CanvasView(): React.JSX.Element {
     brush,
     hover,
     cursor: keyCursor,
+    // Gated on the menu being open: several paths close it without clearing
+    // what it was offering, and a preview outliving its menu would be a change
+    // nobody could dismiss.
+    menu: menuOpen ? menuPreview : null,
   });
 
   // ---- draw ----------------------------------------------------------------
@@ -205,6 +211,8 @@ export function CanvasView(): React.JSX.Element {
     preview,
     hover,
     menuHint,
+    menuPreview,
+    menuOpen,
     writing,
     keyPoint,
     caretOn,

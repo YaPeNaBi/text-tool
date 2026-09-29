@@ -162,6 +162,28 @@ export function linked(grid: Grid, a: Cell, b: Cell): boolean {
 }
 
 /**
+ * The directions in which (x,y) has a **slash** for a neighbour.
+ *
+ * The one kind of arm that is not stray when it points at a cell that does not
+ * point back. A slash declares no arms at all — it joins through a link instead
+ * (B-CONN-08) — so an arm aimed at one is not a leftover, it is half of that
+ * link, and dropping it breaks the join. A circle's ring is exactly this: the
+ * `│` down its side reaches the `\` of its shoulder through a loose arm.
+ *
+ * Deliberately only the glyph, with none of `linked`'s agreement checks. The
+ * question a stamper asks is narrower than the tracer's — not *"are these two
+ * joined right now"* but *"is this arm worth keeping"* — and a stamper that
+ * demanded a finished link would drop the arm that was about to make one.
+ */
+export function slashMask(grid: Grid, x: number, y: number): number {
+  let mask = 0;
+  for (const { d, dx, dy } of DIRS) {
+    if ((grid.get(ck(x + dx, y + dy)) ?? '') in SLASH) mask |= d;
+  }
+  return mask;
+}
+
+/**
  * Every neighbour (x,y) is linked to. Empty for the overwhelming majority of
  * cells, so the common case — a line whose every arm is joined, with no
  * slash or ASCII bend involved — is answered without looking any further.
