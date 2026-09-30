@@ -302,6 +302,10 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
             { keys: ['Esc'], label: 'Done · back to select' },
             // Under text too, where the `j` and `k` are never written (B-KEY-23).
             { keys: ['jk'], label: 'The same, from the home row' },
+            {
+              keys: [],
+              label: 'Huge letters: type, Backspace, Enter, Space',
+            },
             stride,
           ],
         },

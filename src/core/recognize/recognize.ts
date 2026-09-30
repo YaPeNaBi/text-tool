@@ -21,14 +21,59 @@ import { maskOf, type Grid } from '../grid/grid.ts';
 import { links } from '../grid/links.ts';
 import { ellipseRings } from '../stamp/ellipse.ts';
 import { trace } from './trace.ts';
+import { readBanner } from '../text/unbanner.ts';
+import { styleFor } from '../text/banner.ts';
 import { segmentize, type RunGraph } from './segmentize.ts';
 
-export type CandidateKind = 'box' | 'ellipse' | 'line' | 'arrow' | 'text' | 'cells';
+export type CandidateKind =
+  | 'box'
+  | 'ellipse'
+  | 'line'
+  | 'arrow'
+  | 'text'
+  | 'banner'
+  | 'cells';
+
+/**
+ * What a `banner` reading knows beyond which cells it covers (B-FONT-03).
+ *
+ * The **style id** rather than the style, so a `Candidate` stays plain data —
+ * selections are compared, copied and held in session state, and one carrying
+ * functions would be a selection you could not reason about.
+ */
+export interface BannerInfo {
+  styleId: string;
+  /** What the picture says, recovered by parsing it (`text/unbanner.ts`). */
+  text: string;
+}
 
 export interface Candidate {
   kind: CandidateKind;
   cells: Set<CellKey>;
   bounds: Rect;
+  /** Set on a `banner` and nothing else. */
+  banner?: BannerInfo;
+}
+
+/**
+ * Huge letters as a reading, or null.
+ *
+ * Tried **before** tracing, because a banner is not a connected component and
+ * never could be: its letters are separated by a blank column by construction, so
+ * a flood fill finds one letter at best. Without this a click on `HELLO` in
+ * blocks reads as a *run of text* one row tall — which is not merely unhelpful
+ * but actively wrong, since the Font menu would then offer to render those block
+ * characters as letters and fill the row with tofu.
+ */
+export function matchBanner(grid: Grid, x: number, y: number): Candidate | null {
+  const found = readBanner(grid, { x, y });
+  if (found === null) return null;
+  return {
+    kind: 'banner',
+    cells: found.cells,
+    bounds: found.bounds,
+    banner: { styleId: found.style.id, text: found.text },
+  };
 }
 
 export const MIN_RECOGNIZED_BOX = 2;
@@ -125,6 +170,9 @@ export function matchTextRun(grid: Grid, x: number, y: number): Candidate | null
  * Otherwise recognition always yields something (B-REC-06).
  */
 export function recognize(grid: Grid, x: number, y: number): Candidate | null {
+  const banner = matchBanner(grid, x, y);
+  if (banner !== null) return banner;
+
   const { cells, truncated } = trace(grid, x, y);
   if (cells.size === 0) return matchTextRun(grid, x, y);
 
@@ -213,6 +261,18 @@ export function describe(c: Candidate): string {
       // where the width is the length of its longest line and says nothing
       // about how much is selected.
       return `Text ${c.cells.size} chars`;
+    case 'banner':
+      // What it says, not how big it is: the whole point of the reading is that
+      // the picture has been understood, so the status bar can quote it back.
+      if (c.banner === undefined) return `Banner ${size}`;
+      {
+        // One line of it, however many there are: the status bar is one line too,
+        // and a newline in the middle of it would break the row rather than wrap.
+        const [first = '', ...rest] = c.banner.text.split('\n');
+        const said = rest.length > 0 ? `${first}…` : first;
+        const font = styleFor(c.banner.styleId)?.label ?? c.banner.styleId;
+        return `Banner \`${said}\` · ${font}`;
+      }
     case 'cells':
       return `Cells ${size}`;
   }

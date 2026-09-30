@@ -351,6 +351,36 @@ export function installKeyboard(cancelGesture: () => void): () => void {
       }
     }
 
+    // ---- a selected banner owns the keyboard, in the writing mode (B-FONT-04) ----
+    //
+    // Above the caret branch because there is no caret to own it: a banner has
+    // no insertion point inside it, only an end, so every key here means the same
+    // thing as it would in a text field and none of them mean what they mean on
+    // the grid. Without this, Backspace would delete the whole selection and
+    // Enter would widen it.
+    //
+    // Below `Ctrl` and the menu, so undo, save and the font list still work.
+    if (store.typingBanner()) {
+      if (ev.key === 'Backspace') {
+        ev.preventDefault();
+        store.editBanner((text) => [...text].slice(0, -1).join(''));
+        return;
+      }
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        store.editBanner((text) => `${text}\n`);
+        return;
+      }
+      if (ev.key === 'Escape') {
+        store.setTool('select');
+        return;
+      }
+      if (ev.key.length === 1) {
+        ev.preventDefault();
+        store.editBanner((text) => text + ev.key);
+        return;
+      }
+    }
     // ---- a live caret owns the keyboard (B-DRAW-11) ----
 
     if (store.caret !== null) {

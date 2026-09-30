@@ -112,6 +112,14 @@ off.
 | Detaching flush shapes | ✅ | Drag one of two boxes drawn edge-to-edge and both stay whole. | [derive/shared.ts](src/core/derive/shared.ts) |
 | Tables | 📐 | A table reads as nine overlapping rectangles, none of them a row. Designed: [tables.md](intuitive/tables.md). | [recognize/table.ts](src/core/recognize/table.ts) |
 
+### Huge letters — `src/core/text/`
+
+| Feature | State | Notes | File |
+|---|---|---|---|
+| Set text in a font | ✅ | Seven fonts off one bitmap alphabet, from the actions menu on a run of text, previewed on the canvas as you point at them. | [text/banner.ts](src/core/text/banner.ts) |
+| Recognise them again | ✅ | A click selects the whole word and says what it says: the rendering is parsed back, not remembered. | [text/unbanner.ts](src/core/text/unbanner.ts) |
+| Type into them | ✅ | `t` then type; backspace removes a letter, Enter drops a font-height, Space leaves a font-width. | [ops/banner.ts](src/core/ops/banner.ts) |
+
 ### Files — `src/platform/`
 
 | Feature | State | Notes | File |

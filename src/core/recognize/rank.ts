@@ -35,6 +35,7 @@ import {
   matchBox,
   matchEllipse,
   matchPath,
+  matchBanner,
   matchTextRun,
   type Candidate,
 } from './recognize.ts';
@@ -63,17 +64,23 @@ function area(r: Rect): number {
  */
 function specificity(c: Candidate): number {
   switch (c.kind) {
+    // The most committed reading there is: a banner has been *parsed*, letter by
+    // letter, and a parse that succeeded is not a guess about what these cells
+    // might be. It also has to beat `text`, which would otherwise claim one row
+    // of it and hand the Font menu a row of block characters to render.
+    case 'banner':
+      return 0;
     case 'box':
     case 'ellipse':
-      return 0;
-    case 'arrow':
       return 1;
-    case 'line':
+    case 'arrow':
       return 2;
-    case 'text':
+    case 'line':
       return 3;
-    case 'cells':
+    case 'text':
       return 4;
+    case 'cells':
+      return 5;
   }
 }
 
@@ -231,11 +238,20 @@ function shapesThrough(
  * Empty only when the seed cell is empty.
  */
 export function candidatesAt(grid: Grid, x: number, y: number): Candidate[] {
+  // First, and outside the trace entirely: a banner's letters are separated by a
+  // blank column by construction, so no flood fill will ever find more than one
+  // of them (see `matchBanner`).
+  const banner = matchBanner(grid, x, y);
   const { cells, truncated } = trace(grid, x, y);
 
   if (cells.size === 0) {
     const text = matchTextRun(grid, x, y);
-    return text === null ? [] : [text];
+    // Both, in that order: the whole word first, and the one row under the
+    // pointer after it, so clicking again narrows from the banner to its letters.
+    const only: Candidate[] = [];
+    if (banner !== null) only.push(banner);
+    if (text !== null) only.push(text);
+    return only;
   }
 
   const bounds = boundsOf(cells);
@@ -248,6 +264,7 @@ export function candidatesAt(grid: Grid, x: number, y: number): Candidate[] {
   const push = (c: Candidate): void => {
     if (!out.some((existing) => sameCells(existing.cells, c.cells))) out.push(c);
   };
+  if (banner !== null) push(banner);
 
   const parts = shapesThrough(grid, cells, x, y);
 

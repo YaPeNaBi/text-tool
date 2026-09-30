@@ -77,8 +77,8 @@ import { travellingWith } from '../../core/derive/gather.ts';
 import { labelBoundsOf, textBlockAt } from '../../core/derive/label.ts';
 import type { Plan } from '../../core/ops/plan.ts';
 import { convertCharset } from '../../core/transform/convert.ts';
-import { planBanner } from '../../core/ops/banner.ts';
-import { BANNER_STYLES, styleFor } from '../../core/text/banner.ts';
+import { planBanner, planBannerEdit } from '../../core/ops/banner.ts';
+import { BANNER_STYLES, styleFor, type BannerStyle } from '../../core/text/banner.ts';
 import { toText } from '../../core/io/text.ts';
 import { DEFAULT_FILENAME, platform } from '../../platform/index.ts';
 import {
@@ -423,6 +423,23 @@ export interface EditorState {
   menuHint: ReadonlySet<CellKey> | null;
   /** What the pointed-at item would draw, shown before it is chosen (B-UI-16a). */
   menuPreview: CellDiff | null;
+  /**
+   * The text being typed into a banner, while one is being typed into.
+   *
+   * Session state, and it has to be: a **trailing space is unrenderable**. The
+   * rows are right-trimmed on the way out (B-TXT-01), so `HI ` and `HI` draw
+   * exactly the same cells and reading the picture back can only ever answer
+   * `HI`. Pressing space would then do nothing at all, and the next letter
+   * would land flush against the last one.
+   *
+   * So the grid holds the rendering and this holds the *intent*, which is the
+   * document/session split the whole store is built on. The same trick carries
+   * a pending newline, whose blank rows are equally invisible.
+   *
+   * Keyed by the banner it belongs to, so clicking a different one starts from
+   * what that one actually says rather than from what was last typed.
+   */
+  bannerEdit: { at: CellKey; text: string } | null;
   canUndo: boolean;
   canRedo: boolean;
 
@@ -539,6 +556,12 @@ export interface EditorState {
   /** Step the selection to the next cell of its table. False when there is none. */
   selectNeighbourCell: (dx: number, dy: number) => boolean;
 
+  /** True while keystrokes are going into a selected banner (B-FONT-04). */
+  typingBanner: () => boolean;
+  /** The style a selected banner is drawn in, or null. */
+  bannerStyle: () => BannerStyle | null;
+  /** Re-render the selected banner with its text changed. */
+  editBanner: (edit: (text: string) => string) => void;
   typeAt: (ch: string) => void;
   newline: () => void;
   backspace: () => void;
@@ -580,6 +603,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   menuPath: [0],
   menuHint: null,
   menuPreview: null,
+  bannerEdit: null,
   canUndo: false,
   canRedo: false,
 
@@ -607,6 +631,10 @@ export const useEditor = create<EditorState>((set, get) => ({
       drill: null,
       // …and the menu, which is anchored to a shape that has just changed.
       menuOpen: false,
+      // …and the text being typed into a banner. `editBanner` writes it back
+      // straight after its own `runPlan`, so clearing it here means every *other*
+      // route to the grid — an undo most of all — drops a stale intent.
+      bannerEdit: null,
     });
   },
 
@@ -624,7 +652,9 @@ export const useEditor = create<EditorState>((set, get) => ({
       // reads the selection to decide). A box carried into the text tool would
       // mean nothing, so it is dropped as before.
       selection:
-        tool === 'select' || (tool === 'text' && get().selection?.kind === 'text')
+        tool === 'select' ||
+        (tool === 'text' &&
+          (get().selection?.kind === 'text' || get().selection?.kind === 'banner'))
           ? get().selection
           : null,
       drill: tool === 'select' ? get().drill : null,
@@ -1454,6 +1484,71 @@ export const useEditor = create<EditorState>((set, get) => ({
     apply(eraseCells(selection.cells));
   },
 
+  /**
+   * Whether keystrokes are going into a banner rather than onto the grid.
+   *
+   * The writing mode plus a banner selection, which is the same bargain a
+   * selected run of text already makes (B-KEY-21): select does not write, so
+   * `b` stays box and `t` is how you say that the next key is a letter.
+   * Reading it from one place keeps the two keymaps from disagreeing about
+   * when a letter is a letter.
+   */
+  typingBanner: () => {
+    const { tool, selection } = get();
+    return tool === 'text' && selection !== null && selection.kind === 'banner';
+  },
+
+  /** The style a selected banner is drawn in, or null when none is. */
+  bannerStyle: () => {
+    const id = get().selection?.banner?.styleId;
+    return id === undefined ? null : styleFor(id) ?? null;
+  },
+
+  /**
+   * A keystroke into a selected banner: re-render it saying something else.
+   *
+   * Not a branch inside `typeAt`, because nothing about this is typing at a
+   * caret — there is no caret, the insertion point is the end of the word, and
+   * the whole picture is redrawn (B-FONT-04). Sharing the name would have meant
+   * sharing the insert-mode and grow-the-box logic that has no meaning here.
+   */
+  editBanner: (edit) => {
+    const { selection } = get();
+    const style = get().bannerStyle();
+    if (selection === null || style === null) return;
+
+    // What is being typed, not what is drawn: the two differ by any trailing
+    // space, and the difference is the whole point of `bannerEdit`.
+    const origin = ck(selection.bounds.x, selection.bounds.y);
+    const remembered = get().bannerEdit;
+    const was =
+      remembered !== null && remembered.at === origin
+        ? remembered.text
+        : selection.banner?.text ?? '';
+
+    const text = edit(was);
+    if (text === was) return;
+
+    get().runPlan(
+      planBannerEdit({ x: selection.bounds.x, y: selection.bounds.y }, style, was, text),
+      { keepSelection: true },
+    );
+
+    // The plan already handed back a banner selection — it drew the thing, so it
+    // knows the style and the text exactly — and that is left standing.
+    //
+    // It was re-read from the grid here at first, and that was a bug worth
+    // remembering: `recognize` was asked about the bounds' top-left corner, which
+    // is frequently **blank**. A `G` in this alphabet starts with a gap, so the
+    // re-read found nothing, cleared the selection, and the next keystroke typed
+    // small letters over the big ones. Re-deriving is the right instinct and the
+    // wrong move here: the authority on what was just drawn is whatever drew it.
+    if (get().selection === null) {
+      set({ drill: null, bannerEdit: null });
+      return;
+    }
+    set({ drill: null, bannerEdit: { at: origin, text } });
+  },
   typeAt: (ch) => {
     const { grid, caret, insertMode, sticky, selection } = get();
     if (caret === null) return;
@@ -1547,6 +1642,9 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({
       revision: revision + 1,
       selection: null,
+      // The picture goes back; the text being typed into it has to go with it,
+      // or the next keystroke would render an intent this grid never had.
+      bannerEdit: null,
       dirty: true,
       canUndo: history.canUndo,
       canRedo: history.canRedo,
@@ -1559,6 +1657,9 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({
       revision: revision + 1,
       selection: null,
+      // The picture goes back; the text being typed into it has to go with it,
+      // or the next keystroke would render an intent this grid never had.
+      bannerEdit: null,
       dirty: true,
       canUndo: history.canUndo,
       canRedo: history.canRedo,
