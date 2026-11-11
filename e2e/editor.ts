@@ -52,6 +52,31 @@ export class Editor {
     await expect(this.canvas).toBeVisible();
   }
 
+  /**
+   * `Ctrl`+`S`, *Copy link*, and the link — read back off the clipboard only
+   * once the notice says it is there, because the copy is asynchronous (an
+   * encode and a clipboard write) and the box stays up until it lands.
+   */
+  async copyLink(): Promise<string> {
+    await this.press('Control+s');
+    await this.page.getByRole('button', { name: /^Copy link/ }).click();
+    await expect(this.page.locator('.notice')).toContainText('Link copied');
+    return this.page.evaluate(() => navigator.clipboard.readText());
+  }
+
+  /**
+   * Follow a link that carries a drawing (B-FILE-08), and wait for it to be
+   * opened. Opening is asynchronous — an inflate — and when the page is
+   * already up, a link to it is only a fragment change, so neither a load
+   * event nor the canvas being visible says the drawing is there. The notice
+   * does.
+   */
+  async openLink(url: string): Promise<void> {
+    await this.page.goto(url);
+    await expect(this.canvas).toBeVisible();
+    await expect(this.page.locator('.notice')).toHaveText('Opened the drawing in the link');
+  }
+
   /** Work out the cell size from the coordinates the status bar reports. */
   private async calibrate(): Promise<void> {
     const box = await this.canvas.boundingBox();

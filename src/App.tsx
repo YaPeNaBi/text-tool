@@ -1,6 +1,7 @@
 import { CanvasView } from './app/canvas/CanvasView.tsx';
 import { StatusBar } from './app/components/StatusBar.tsx';
 import { Ribbon } from './app/components/Ribbon.tsx';
+import { SaveBox } from './app/components/SaveBox.tsx';
 import { Toolbar } from './app/components/Toolbar.tsx';
 
 export function App(): React.JSX.Element {
@@ -10,6 +11,7 @@ export function App(): React.JSX.Element {
       <Ribbon />
       <CanvasView />
       <StatusBar />
+      <SaveBox />
     </div>
   );
 }

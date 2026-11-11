@@ -137,6 +137,20 @@ export function installKeyboard(cancelGesture: () => void): () => void {
   const onKeyDown = (ev: KeyboardEvent): void => {
     if (typingInInput()) return; // B-KEY-08
 
+    // ---- the save box owns the keyboard (B-FILE-07) ----
+    //
+    // It is modal and its buttons hold focus, so Enter, Space and Tab are the
+    // browser's to deal with. Escape is the one key it needs from here, and
+    // nothing else may reach the canvas: a `b` meant for nothing must not
+    // switch tools behind the box.
+    if (useEditor.getState().saveOpen) {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        useEditor.getState().closeSave();
+      }
+      return;
+    }
+
     // ---- `jk`: back to select (B-KEY-23) ----
     //
     // Answered before anything else can read the `k`: under text it would be
@@ -298,7 +312,10 @@ export function installKeyboard(cancelGesture: () => void): () => void {
         void openDocument();
       } else if (key === 's') {
         ev.preventDefault();
-        void saveDocument(ev.shiftKey);
+        // Save asks which kind (B-FILE-07); Save As already knows, and asks
+        // where instead.
+        if (ev.shiftKey) void saveDocument(true);
+        else store.openSave();
       } else if (key === '0') {
         ev.preventDefault();
         store.setCamera({ ...store.camera, zoom: 1 }); // B-CAM-07

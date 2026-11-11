@@ -281,18 +281,21 @@ file, a dialog or the clipboard.
 **Interface:** [platform/adapter.ts](src/platform/adapter.ts)
 **Implementations:** [platform/web/](src/platform/web) (File System Access, download fallback) · [platform/desktop/](src/platform/desktop) (Tauri)
 **Chosen at startup by:** [platform/index.ts](src/platform/index.ts)
-**Commands:** `openDocument`, `saveDocument`, `copyDocument`, `pasteDocument` in [app/state/store.ts](src/app/state/store.ts)
+**Commands:** `openDocument`, `saveDocument`, `copyLink`, `openLink`, `copyDocument`, `pasteDocument` in [app/state/store.ts](src/app/state/store.ts)
+**The save box:** [app/components/SaveBox.tsx](src/app/components/SaveBox.tsx) · **The link format:** [core/io/link.ts](src/core/io/link.ts)
 **Enforced by:** [eslint.config.js](eslint.config.js) — boundary 3 forbids the app from importing a concrete implementation
-**Pinned by:** [tests/keep.test.ts](tests/keep.test.ts) · [e2e/editor.spec.ts](e2e/editor.spec.ts) (B-FILE-06)
+**Pinned by:** [tests/keep.test.ts](tests/keep.test.ts) (B-FILE-06) · [tests/link.test.ts](tests/link.test.ts) (B-FILE-08) · [e2e/editor.spec.ts](e2e/editor.spec.ts) (B-FILE-06 … B-FILE-08)
 
 | ID | Status | Behaviour |
 |---|---|---|
 | B-FILE-01 | `[v0]` | `Ctrl`+`O` opens a `.txt` file, replacing the document as **one** undoable step. |
-| B-FILE-02 | `[v0]` | `Ctrl`+`S` saves. Where the platform can write in place it does so silently; where it cannot it falls back to Save As. `Ctrl`+`Shift`+`S` always asks. |
+| B-FILE-02 | `[v0]` | `Ctrl`+`S` opens the save box (B-FILE-07). Its file choice writes in place where the platform can — and the button says so, `Save to …` rather than `Download …` — and falls back to Save As where it cannot. `Ctrl`+`Shift`+`S` skips the box and always asks where. The terminal has no box and keeps the plain save. |
 | B-FILE-03 | `[v0]` | The status bar shows the current file name and marks it `•` while there are unsaved changes. |
 | B-FILE-04 | `[v0]` | On the web, Chrome and Edge write back to the opened file; Firefox and Safari download a copy instead. The adapter states this limitation rather than pretending the write happened. |
 | B-FILE-05 | `[v0]` | Recently opened names are remembered per platform. Reopening one in a click is desktop-only — a browser cannot re-acquire a file handle without a picker. |
 | B-FILE-06 | `[v0]` | **The document survives a refresh.** Every edit hands the platform the whole document as text — from the origin, not cropped the way a save is, so the drawing comes back **where it was** — with its name and whether it was saved; the next start puts it back, marked `•` if it was, and with **no** undo step underneath — `Ctrl`+`Z` on a fresh page must not empty it. An empty grid keeps nothing, so a cleared page comes back blank. The browser keeps it in `localStorage`; the terminal keeps nothing uninvited (`tui file.txt` is its way back). This is what was called autosave: the file on disk is still only written by `Ctrl`+`S`. |
+| B-FILE-07 | `[v0]` | **Save is a question with two answers.** `Ctrl`+`S` and the Save button open a small box: the `.txt`, or a link that holds the drawing (B-FILE-08), with the link's length shown so the choice is an informed one. The file button is focused on the way in, so `Ctrl`+`S` `Enter` is still a save; the arrow keys move between the two; `Escape` or a click outside puts it away, and no other key reaches the canvas while it is up. An empty document says *Nothing to save yet* instead of asking. |
+| B-FILE-08 | `[v0]` | **The link carries the document.** `char.tools/#<payload>`: the drawing rides in the fragment, which never leaves the browser. The payload is the text, **folded** (the Box Drawing block one byte apiece; blocks, shapes and arrows two; anything else escaped UTF-8), **deflate-raw**'d and written in **base64url** — a fifteen-row diagram of 615 characters is 308, against 2988 percent-encoded. The layout is frozen; a later format MUST announce itself with a leading character outside the base64url alphabet. Opening a link replaces the document as one undoable step (as B-FILE-01), marks it unsaved, and takes the fragment off the address: the link was the envelope, not the document. It is not kept (B-FILE-06) until the first edit, so looking at someone's link costs nothing of your own. A payload that cannot be read leaves the page as it was and says so. |
 
 ## 11. Keyboard map
 

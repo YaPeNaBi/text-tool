@@ -80,6 +80,7 @@ import type { Plan } from '../../core/ops/plan.ts';
 import { convertCharset } from '../../core/transform/convert.ts';
 import { planBanner, planBannerEdit } from '../../core/ops/banner.ts';
 import { BANNER_STYLES, styleFor, type BannerStyle } from '../../core/text/banner.ts';
+import { decodeDocument, encodeDocument } from '../../core/io/link.ts';
 import { toText } from '../../core/io/text.ts';
 import { DEFAULT_FILENAME, platform } from '../../platform/index.ts';
 import {
@@ -448,6 +449,8 @@ export interface EditorState {
   dirty: boolean;
   /** Transient note for the status bar: saved, opened, blocked, and so on. */
   notice: string | null;
+  /** The save box is up (B-FILE-07): the file, or a link that holds it. */
+  saveOpen: boolean;
 
   charset: () => Charset;
   apply: (diff: CellDiff, opts?: ApplyOptions) => void;
@@ -462,6 +465,8 @@ export interface EditorState {
   toggleInsertMode: () => void;
   toggleSticky: () => void;
   setNotice: (text: string | null) => void;
+  openSave: () => void;
+  closeSave: () => void;
 
   /** Click-by-click line drawing (B-DRAW-14). */
   addChainPoint: (cell: Cell, from: 'pointer' | 'keyboard') => void;
@@ -611,6 +616,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   fileName: DEFAULT_FILENAME,
   dirty: false,
   notice: null,
+  saveOpen: false,
 
   charset: () => charsetOf(get().charsetId),
 
@@ -709,6 +715,18 @@ export const useEditor = create<EditorState>((set, get) => ({
   toggleSticky: () => set({ sticky: !get().sticky }),
 
   setNotice: (notice) => set({ notice }),
+
+  openSave: () => {
+    // Nothing to download and nothing to link. Saying so beats opening a box
+    // whose every choice would hand over an empty file.
+    if (get().grid.size === 0) {
+      set({ notice: 'Nothing to save yet' });
+      return;
+    }
+    set({ saveOpen: true, menuOpen: false });
+  },
+
+  closeSave: () => set({ saveOpen: false }),
 
   /**
    * Each click drops a corner. Clicking the last one again is a natural way to
@@ -1868,6 +1886,53 @@ export async function saveDocument(as: boolean): Promise<void> {
 
   if (written === null) return;
   useEditor.setState({ fileName: written, dirty: false, notice: `Saved ${written}` });
+}
+
+/** This page's address with the document in the fragment (B-FILE-08). */
+export async function documentLink(): Promise<string> {
+  const payload = await encodeDocument(useEditor.getState().text());
+  return `${location.origin}${location.pathname}#${payload}`;
+}
+
+export async function copyLink(): Promise<void> {
+  const url = await documentLink();
+  await platform().writeClipboard(url);
+  useEditor.setState({ saveOpen: false, notice: `Link copied · ${String(url.length)} characters` });
+}
+
+/**
+ * The document in the address, if there is one (B-FILE-08).
+ *
+ * Opened the way a file is — one undoable step over whatever was on the page,
+ * so `Ctrl`+`Z` gives that back — and marked unsaved, because nothing on this
+ * machine holds it yet. Then the fragment is taken off the address: the link
+ * was the envelope, not the document, and a refresh must bring back what is
+ * being edited rather than the envelope's contents again.
+ *
+ * Runs at startup and again on every change of the fragment, because a link
+ * pasted into a tab that already has the page open does not reload it.
+ */
+export async function openLink(): Promise<void> {
+  const payload = location.hash.slice(1);
+  if (payload === '') return;
+
+  let text: string;
+  try {
+    text = await decodeDocument(payload);
+  } catch {
+    useEditor.setState({ notice: 'The link could not be read' });
+    return;
+  }
+
+  // Looking at a link keeps nothing (B-FILE-06): whatever was kept before it
+  // is kept still, until the first edit of what it brought. `keepDocument`
+  // will have written the link's document on the `loadText`, so what was there
+  // is put back after it.
+  const kept = platform().kept();
+  useEditor.getState().loadText(text, DEFAULT_FILENAME);
+  useEditor.setState({ dirty: true, notice: 'Opened the drawing in the link' });
+  platform().keep(kept);
+  window.history.replaceState(null, '', location.pathname + location.search);
 }
 
 export async function copyDocument(selectionOnly: boolean): Promise<void> {

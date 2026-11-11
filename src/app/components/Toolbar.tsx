@@ -1,11 +1,6 @@
 import { useEffect } from 'react';
 import { CHARSETS } from '../../core/charset/charsets.ts';
-import {
-  copyDocument,
-  openDocument,
-  saveDocument,
-  useEditor,
-} from '../state/store.ts';
+import { copyDocument, openDocument, useEditor } from '../state/store.ts';
 import { TOOLS } from '../tools.ts';
 import { NOTICE_MS } from '../canvas/palette.ts';
 
@@ -23,6 +18,7 @@ export function Toolbar(): React.JSX.Element {
   const setNotice = useEditor((s) => s.setNotice);
   const sticky = useEditor((s) => s.sticky);
   const toggleSticky = useEditor((s) => s.toggleSticky);
+  const openSave = useEditor((s) => s.openSave);
 
   // One shared transient message, cleared on a timer.
   useEffect(() => {
@@ -89,7 +85,7 @@ export function Toolbar(): React.JSX.Element {
         <button onClick={() => void openDocument()} title="Open a .txt file (Ctrl+O)">
           Open
         </button>
-        <button onClick={() => void saveDocument(false)} title="Save (Ctrl+S)">
+        <button onClick={openSave} title="Save: download the .txt, or copy a link (Ctrl+S)">
           Save
         </button>
         <button

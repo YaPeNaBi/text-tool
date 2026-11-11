@@ -335,3 +335,64 @@ button.active .hint {
   font-size: 12px;
   opacity: 0.5;
 }
+
+/* ---- save box ----
+   One question, two answers, over everything. Fixed to the viewport rather than
+   to the canvas because it is modal: there is nothing else to point at while it
+   is up, and the scrim says so. */
+
+.save-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 40%);
+}
+
+.save-box {
+  display: grid;
+  gap: 6px;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 55%);
+}
+
+.save-box h2 {
+  margin: 2px 4px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Each answer is a button with a line under it saying what it will do. */
+.save-box button {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  text-align: left;
+  padding: 8px 10px;
+  white-space: normal;
+}
+
+.save-box button .what {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.save-box button:focus-visible {
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
+}
+
+.save-box .esc {
+  margin: 2px 4px 0;
+  font-size: 11px;
+  color: var(--muted);
+}

@@ -3559,3 +3559,94 @@ test.describe('the document survives a refresh (B-FILE-06)', () => {
     expect(await ed.cellCount()).toBe(0);
   });
 });
+
+test.describe('save: the file, or a link (B-FILE-07, B-FILE-08)', () => {
+  test('Ctrl+S asks, and Escape takes the question away', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Box');
+    await ed.drag([1, 1], [5, 3]);
+    await page.keyboard.press('Control+s');
+
+    const box = page.getByRole('dialog', { name: 'Save' });
+    await expect(box).toBeVisible();
+    await expect(box.getByRole('button', { name: /^Copy link/ })).toContainText('characters');
+
+    await page.keyboard.press('Escape');
+    await expect(box).toBeHidden();
+    // The question did not touch the document.
+    expect(await ed.cellCount()).toBe(12);
+  });
+
+  test('an empty page has nothing to save, and says so instead of asking', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await page.keyboard.press('Control+s');
+
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.locator('.notice')).toHaveText('Nothing to save yet');
+  });
+
+  test('the link holds the whole drawing, and opening it brings the drawing back', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Box');
+    await ed.drag([2, 1], [8, 4]);
+    await ed.tool('Text');
+    await ed.click(4, 2);
+    await ed.type('hi');
+    await page.keyboard.press('Escape');
+    const drawn = await ed.text();
+
+    const url = await ed.copyLink();
+
+    expect(url).toMatch(/^http:\/\/localhost:\d+\/#[A-Za-z0-9_-]+$/);
+    // Short: a box with a word in it is a tweet's worth of address, not a page's.
+    expect(url.length).toBeLessThan(120);
+
+    // From a fresh tab, so this is a full load with the fragment in it.
+    await ed.clear();
+    await page.goto('about:blank');
+    await ed.openLink(url);
+
+    expect(await ed.text()).toBe(drawn);
+    // The envelope is opened and put away: the address no longer carries it.
+    expect(page.url()).not.toContain('#');
+    await expect(page.locator('.statusbar')).toContainText('•');
+  });
+
+  test('a link opens over what was there as one undo step, and is not kept until edited', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    // Theirs: a box, turned into a link.
+    await ed.tool('Box');
+    await ed.drag([1, 1], [5, 3]);
+    const theirs = await ed.text();
+    const url = await ed.copyLink();
+
+    // Mine: something else, kept across refreshes.
+    await ed.clear();
+    await ed.drag([1, 1], [9, 6]);
+    const mine = await ed.text();
+    expect(mine).not.toBe(theirs);
+
+    // Pasted into this tab's address bar: the page is up, so only the fragment
+    // changes and nothing reloads.
+    await ed.openLink(url);
+    expect(await ed.text()).toBe(theirs);
+
+    // Ctrl+Z gives mine back within the session…
+    await page.keyboard.press('Control+z');
+    expect(await ed.text()).toBe(mine);
+
+    // …and a refresh gives it back too, because looking at theirs kept nothing.
+    await ed.openLink(url);
+    expect(await ed.text()).toBe(theirs);
+    await ed.reload();
+    expect(await ed.text()).toBe(mine);
+  });
+});

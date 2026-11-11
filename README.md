@@ -571,11 +571,29 @@ these differently because a tty cannot report the gesture — see
 | `Delete` `Backspace` | erase the selection |
 | `Ctrl`+`Z` / `Ctrl`+`Y` | undo / redo |
 | `Ctrl`+`C` / `Ctrl`+`V` | copy what is selected, or all of it · paste as cells, **at the keyboard cursor** — the yellow square, not wherever the mouse is resting. Clicking a cell puts the cursor there, so point-and-paste still works |
-| `Ctrl`+`O` `Ctrl`+`S` `Ctrl`+`Shift`+`S` | open · save · save as |
+| `Ctrl`+`O` `Ctrl`+`S` `Ctrl`+`Shift`+`S` | open · save — the `.txt`, or a link that holds the whole drawing · save as |
 | `Alt` while dragging a line | flip the elbow |
 | `[` `]` | eraser brush size |
 | `Insert` | insert vs overwrite typing |
 | `Escape` | cancel the gesture, else clear the selection |
+
+---
+
+## A link is a file
+
+`Ctrl`+`S` offers a link beside the download. The whole drawing is in it, after
+the `#`, so nothing is sent anywhere: a static host serves the page and the
+browser does the rest, and there is no server that could lose it or read it.
+
+The drawing is folded — box-drawing characters to one byte each — then deflated
+and written in base64url. A fifteen-row diagram comes to about 300 characters,
+a tenth of what percent-encoding would make of it. [core/io/link.ts](src/core/io/link.ts)
+is the whole format, and it is frozen: a link sent today has to open next year.
+
+Opening a link replaces the page as one undo step and marks it unsaved; the
+address is then cleaned, so a refresh brings back what you are editing rather
+than the link again. Your own drawing is not overwritten in the browser until
+you edit theirs (B-FILE-08).
 
 ---
 
