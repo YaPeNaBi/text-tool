@@ -415,6 +415,7 @@ One store, deliberately split down the middle.
 | Holds | the grid, a revision counter | tool, camera, selection, drill depth, caret, charset, hover |
 | Undoable | yes | **no** |
 | Saved | yes | no |
+| Survives a refresh | yes — kept in the browser on every edit (B-FILE-06) | no |
 | Would sync in multiplayer | yes | no — this becomes presence data |
 
 Conflating the two is the classic way editor undo turns maddening (Ctrl+Z changing
@@ -500,8 +501,9 @@ follow shapes. `Ctrl+X` leaves.
   `pbpaste` or PowerShell, and falls back to a clipboard kept in the process — so
   copy-then-paste inside one session always works, and the status line says when
   that is all you are getting.
-- **Remember recent files.** No `localStorage`, and a dotfile is a decision about
-  someone else's home directory.
+- **Remember recent files, or the drawing between runs.** No `localStorage`, and a
+  dotfile is a decision about someone else's home directory. Save what you want
+  kept; `tui diagram.txt` brings it straight back.
 
 ---
 

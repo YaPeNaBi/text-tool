@@ -3514,3 +3514,48 @@ test.describe('dragging a side resizes the shape (B-MAN-15)', () => {
     expect(rows[2]).toBe('│         │');
   });
 });
+
+test.describe('the document survives a refresh (B-FILE-06)', () => {
+  test('a drawing is still there after the page is reloaded, where it was', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Box');
+    await ed.drag([6, 4], [10, 6]);
+    const drawn = await ed.text();
+
+    await ed.reload();
+
+    expect(await ed.text()).toBe(drawn);
+    expect(drawn).toBe(['┌───┐', '│   │', '└───┘'].join('\n'));
+    // Copying crops, so the text alone cannot say *where* it came back: the
+    // corner it was drawn from has to still be a corner of a box.
+    await ed.click(6, 4);
+    expect(await ed.selection()).toContain('Box 5×3');
+  });
+
+  test('and it comes back marked unsaved, with nothing to undo', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Box');
+    await ed.drag([1, 1], [5, 3]);
+    await ed.reload();
+
+    await expect(page.locator('.statusbar')).toContainText('•');
+    await page.keyboard.press('Control+z');
+    expect(await ed.cellCount()).toBe(12);
+  });
+
+  test('but a cleared page stays cleared', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Box');
+    await ed.drag([1, 1], [5, 3]);
+    await ed.clear();
+    await ed.reload();
+
+    expect(await ed.cellCount()).toBe(0);
+  });
+});

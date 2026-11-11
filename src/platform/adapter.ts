@@ -13,6 +13,18 @@ export interface OpenedFile {
 }
 
 /**
+ * The document as it was last left, so a refresh or a closed tab does not
+ * throw it away (B-FILE-06).
+ *
+ * `dirty` comes along because it is the one thing the text cannot say: whether
+ * what was on screen had been saved. Restoring an edited drawing as if it were
+ * clean would hide the `•` that says Save still matters.
+ */
+export interface KeptDocument extends OpenedFile {
+  dirty: boolean;
+}
+
+/**
  * How a platform asks the user for a line of text, when it has no dialog to put
  * one in.
  *
@@ -47,6 +59,17 @@ export interface PlatformAdapter {
 
   recentFiles(): Promise<string[]>;
   onMenuCommand(handler: (cmd: string) => void): void;
+
+  /**
+   * Hold on to the document between runs. `null` means there is nothing worth
+   * keeping — an empty grid — and clears whatever was held.
+   *
+   * Synchronous on purpose: this is called on every edit, and an edit that has
+   * to wait for a promise to be kept is an edit a crash can lose.
+   */
+  keep(doc: KeptDocument | null): void;
+  /** What `keep` last held, or null when nothing was — or the platform cannot. */
+  kept(): KeptDocument | null;
 }
 
 export const DEFAULT_FILENAME = 'diagram.txt';

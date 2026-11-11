@@ -125,6 +125,10 @@ export function createDesktopAdapter(): PlatformAdapter {
 
     readClipboard: () => web.readClipboard(),
     writeClipboard: (text) => web.writeClipboard(text),
+    // The webview has the same `localStorage`, and a window closed mid-drawing
+    // is the same loss as a tab closed mid-drawing.
+    keep: (doc) => web.keep(doc),
+    kept: () => web.kept(),
 
     async recentFiles() {
       try {

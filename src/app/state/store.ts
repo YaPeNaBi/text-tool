@@ -1810,6 +1810,55 @@ export async function openDocument(): Promise<void> {
   useEditor.getState().loadText(file.text, file.name);
 }
 
+/**
+ * Bring back whatever the platform kept from last time (B-FILE-06).
+ *
+ * Not an undo step: there is no "before" to go back to, and `Ctrl`+`Z` on a
+ * freshly opened page emptying it would be the one way to lose the drawing
+ * that keeping it was meant to prevent. Nor an `Opened …` notice — nothing was
+ * opened, it was simply still there.
+ */
+export function restoreDocument(): void {
+  const kept = platform().kept();
+  if (kept === null) return;
+
+  const store = useEditor.getState();
+  store.loadText(kept.text, kept.name);
+  history.clear();
+  useEditor.setState({ dirty: kept.dirty, canUndo: false, canRedo: false, notice: null });
+}
+
+/**
+ * The document as text, from the origin rather than from the drawing's own
+ * top-left corner — so a box drawn in the middle of the page comes back in the
+ * middle of the page. A save crops (B-TXT-01), because a file wants no margin;
+ * a refresh must not, because the margin is where the drawing *is*. Null for
+ * an empty grid.
+ */
+function keptText(grid: Grid): string | null {
+  const b = boundsOf(grid.keys());
+  if (b === null) return null;
+  return toText(grid, { x: 0, y: 0, w: b.x + b.w, h: b.y + b.h });
+}
+
+/**
+ * Keep the document on every change, from now on (B-FILE-06).
+ *
+ * The whole document each time, as text, rather than the diff: the text is
+ * the format the document already has (B-TXT-01), and a net woven out of
+ * diffs has to be replayed to find out what it caught. The same change that
+ * bumps `revision` for the renderer is the one worth keeping; the name and the
+ * saved-ness come along because the status bar shows them. An empty grid keeps
+ * nothing, so a cleared page does not come back as a cleared page.
+ */
+export function keepDocument(): () => void {
+  return useEditor.subscribe((s, was) => {
+    if (s.revision === was.revision && s.fileName === was.fileName && s.dirty === was.dirty) return;
+    const text = keptText(s.grid);
+    platform().keep(text === null ? null : { name: s.fileName, text, dirty: s.dirty });
+  });
+}
+
 export async function saveDocument(as: boolean): Promise<void> {
   const store = useEditor.getState();
   const text = store.text();

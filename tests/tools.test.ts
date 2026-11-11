@@ -324,6 +324,8 @@ describe('paste anchoring (B-TXT-04)', () => {
       writeClipboard: () => Promise.resolve(),
       recentFiles: () => Promise.resolve([]),
       onMenuCommand: () => undefined,
+      keep: () => undefined,
+      kept: () => null,
     });
   };
 

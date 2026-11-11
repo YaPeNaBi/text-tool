@@ -44,6 +44,7 @@ export function platform(): PlatformAdapter {
 
 export {
   DEFAULT_FILENAME,
+  type KeptDocument,
   type LinePrompt,
   type OpenedFile,
   type PlatformAdapter,

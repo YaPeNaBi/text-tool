@@ -43,6 +43,15 @@ export class Editor {
     await this.clear();
   }
 
+  /**
+   * The page again, as a user's F5 would get it — and without the `clear()`
+   * that `goto()` does, because what came back is the question.
+   */
+  async reload(): Promise<void> {
+    await this.page.reload();
+    await expect(this.canvas).toBeVisible();
+  }
+
   /** Work out the cell size from the coordinates the status bar reports. */
   private async calibrate(): Promise<void> {
     const box = await this.canvas.boundingBox();

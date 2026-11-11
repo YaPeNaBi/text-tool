@@ -283,6 +283,7 @@ file, a dialog or the clipboard.
 **Chosen at startup by:** [platform/index.ts](src/platform/index.ts)
 **Commands:** `openDocument`, `saveDocument`, `copyDocument`, `pasteDocument` in [app/state/store.ts](src/app/state/store.ts)
 **Enforced by:** [eslint.config.js](eslint.config.js) — boundary 3 forbids the app from importing a concrete implementation
+**Pinned by:** [tests/keep.test.ts](tests/keep.test.ts) · [e2e/editor.spec.ts](e2e/editor.spec.ts) (B-FILE-06)
 
 | ID | Status | Behaviour |
 |---|---|---|
@@ -291,7 +292,7 @@ file, a dialog or the clipboard.
 | B-FILE-03 | `[v0]` | The status bar shows the current file name and marks it `•` while there are unsaved changes. |
 | B-FILE-04 | `[v0]` | On the web, Chrome and Edge write back to the opened file; Firefox and Safari download a copy instead. The adapter states this limitation rather than pretending the write happened. |
 | B-FILE-05 | `[v0]` | Recently opened names are remembered per platform. Reopening one in a click is desktop-only — a browser cannot re-acquire a file handle without a picker. |
-| B-FILE-06 | `[planned]` | Autosave. |
+| B-FILE-06 | `[v0]` | **The document survives a refresh.** Every edit hands the platform the whole document as text — from the origin, not cropped the way a save is, so the drawing comes back **where it was** — with its name and whether it was saved; the next start puts it back, marked `•` if it was, and with **no** undo step underneath — `Ctrl`+`Z` on a fresh page must not empty it. An empty grid keeps nothing, so a cleared page comes back blank. The browser keeps it in `localStorage`; the terminal keeps nothing uninvited (`tui file.txt` is its way back). This is what was called autosave: the file on disk is still only written by `Ctrl`+`S`. |
 
 ## 11. Keyboard map
 
@@ -387,6 +388,7 @@ Stated so their absence reads as a decision rather than an oversight.
 - Drawing a box from the keyboard — **`[v0]`** (B-DRAW-15)
 - Rounded / heavy / double charset packs — **`[v0]`** (B-CS-06)
 - Automated UI tests — **`[v0]`**, 24 Playwright specs in [e2e/](e2e)
+- The document surviving a refresh — **`[v0]`** (B-FILE-06), the browser half of autosave
 
 ### Still outstanding
 
@@ -397,7 +399,6 @@ Stated so their absence reads as a decision rather than an oversight.
 - Interior text travelling with its box — `[planned]` (B-REC-13)
 - Grow-to-fit typing — `[planned]` (content §4)
 - Layers, styling, templates, auto-layout — `[planned]`
-- Autosave — `[planned]` (B-FILE-06)
 - Whether a line touching a box joins its candidate — `[open]` (B-REC-16)
 - Multiplayer — `[planned]`; only the structural seams exist
 - Touch input — `[open]`

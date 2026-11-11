@@ -9,6 +9,7 @@
 
 import {
   DEFAULT_FILENAME,
+  type KeptDocument,
   type OpenedFile,
   type PlatformAdapter,
 } from '../adapter.ts';
@@ -21,6 +22,11 @@ interface FilePickerWindow {
 
 const RECENT_KEY = 'ascii-writer:recent';
 const RECENT_MAX = 8;
+// The document itself, kept across a refresh (B-FILE-06). `localStorage`
+// rather than a cookie: a cookie travels with every request to the server,
+// which has no use for a drawing, and tops out at four kilobytes, which a
+// drawing can pass in an afternoon.
+const KEPT_KEY = 'ascii-writer:kept';
 
 const PICKER_OPTS = {
   types: [
@@ -48,6 +54,23 @@ function download(name: string, text: string): void {
   a.download = name;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Only the shape this build writes is read back. Anything else in the slot —
+ * an older build's layout, a hand edit — is treated as nothing kept, because a
+ * half-understood document restored on top of a blank page is worse than a
+ * blank page.
+ */
+function asKept(raw: string | null): KeptDocument | null {
+  if (raw === null) return null;
+  const v: unknown = JSON.parse(raw);
+  if (typeof v !== 'object' || v === null) return null;
+  const { name, text, dirty } = v as Record<string, unknown>;
+  if (typeof name !== 'string' || typeof text !== 'string' || typeof dirty !== 'boolean') {
+    return null;
+  }
+  return { name, text, dirty };
 }
 
 function pickWithInput(): Promise<OpenedFile | null> {
@@ -158,6 +181,24 @@ export function createWebAdapter(): PlatformAdapter {
 
     onMenuCommand() {
       /* the browser has no native menu bar */
+    },
+
+    keep(doc) {
+      try {
+        if (doc === null) localStorage.removeItem(KEPT_KEY);
+        else localStorage.setItem(KEPT_KEY, JSON.stringify(doc));
+      } catch {
+        /* private mode or a full quota: the document is still on screen, and
+           Save still works — this was only ever the net under it */
+      }
+    },
+
+    kept() {
+      try {
+        return asKept(localStorage.getItem(KEPT_KEY));
+      } catch {
+        return null;
+      }
     },
   };
 }

@@ -18,10 +18,12 @@
  *     clipboard kept in this process, which is what makes copy-then-paste inside
  *     one session work even on a machine with no helper installed.
  *
- *   - **Recents are per-run.** There is no `localStorage`, and inventing a
- *     dotfile is a decision about someone else's home directory. The list lives
- *     in memory and starts empty: it is a convenience, and a convenience that
- *     writes to disk uninvited is not one.
+ *   - **Recents are per-run, and so is the document.** There is no `localStorage`,
+ *     and inventing a dotfile is a decision about someone else's home directory.
+ *     The list lives in memory and starts empty: it is a convenience, and a
+ *     convenience that writes to disk uninvited is not one. The same reasoning
+ *     keeps nothing between runs (B-FILE-06): what you want kept, you save, and
+ *     `tui diagram.txt` brings it straight back.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -260,6 +262,14 @@ export function createTerminalAdapter(ask: () => LinePrompt | null): TerminalPla
 
     onMenuCommand() {
       /* a terminal has no menu bar to command from */
+    },
+
+    keep() {
+      /* nothing is written uninvited — see the header */
+    },
+
+    kept() {
+      return null;
     },
   };
 }
