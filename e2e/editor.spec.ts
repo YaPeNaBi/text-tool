@@ -1855,10 +1855,11 @@ test.describe('hjkl walks the grid (B-KEY-22)', () => {
 
     await ed.click(0, 0);
     await ed.press('t');
-    await ed.type('hjkl');
+    await ed.type('lkjh');
 
-    // The one mode the walk stays out of: these are four characters.
-    expect(await ed.text()).toBe('hjkl');
+    // The one mode the walk stays out of: these are four characters. Not typed
+    // as `hjkl`, whose `jk` is the way back to select (B-KEY-23).
+    expect(await ed.text()).toBe('lkjh');
   });
 });
 
@@ -2397,8 +2398,9 @@ test.describe('the freehand tool (B-DRAW-16)', () => {
 
     const rows = (await ed.text()).split('\n');
     expect(rows.length).toBeGreaterThan(1);
-    // Line glyphs, not a scatter of dots: every cell knows its neighbours.
-    expect(rows.join('')).toMatch(/^[─│┌┐└┘├┤┬┴┼ ]+$/);
+    // Line glyphs, not a scatter of dots: every cell knows its neighbours. A
+    // step on both axes is a slash, curving in through a bend (B-DRAW-16).
+    expect(rows.join('')).toMatch(/^[─│┌┐└┘├┤┬┴┼╭╮╯╰/\\ ]+$/);
   });
 
   test('one stroke is one undo step', async ({ page }) => {
@@ -2660,6 +2662,38 @@ test.describe('enter widens, ctrl+enter takes everything joined up (B-SEL-19)', 
     expect(await ed.selection()).toContain('9×5');
     await ed.press('Enter');
     expect(await ed.selection()).toContain('9×5');
+  });
+
+  test('on a word, enter takes its paragraph, and again comes back to the word (B-SEL-19e)', async ({
+    page,
+  }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    // Two lines flush left, a blank row, then another paragraph.
+    await ed.tool('Text');
+    await ed.click(2, 1);
+    await ed.type('one - two');
+    await ed.press('Enter');
+    await ed.type('three');
+    await ed.press('Enter');
+    await ed.press('Enter');
+    await ed.type('four');
+    await ed.press('Escape');
+
+    await ed.tool('Select');
+    await ed.click(9, 1); // on "two"
+    await ed.press('Escape');
+
+    await ed.press('Enter');
+    expect(await ed.selection()).toContain('Text 3 chars'); // the word
+
+    await ed.press('Enter');
+    // "one - two" and "three": the dash comes along, the blank row ends it.
+    expect(await ed.selection()).toContain('Text 12 chars');
+
+    await ed.press('Enter');
+    expect(await ed.selection()).toContain('Text 3 chars');
   });
 });
 

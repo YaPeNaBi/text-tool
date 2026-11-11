@@ -141,7 +141,7 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
             { keys: ['Shift', 'click'], label: 'Add all of it' },
             { keys: ['Ctrl', 'click'], label: 'Add one piece' },
             { keys: ['Ctrl', 'A'], label: 'Everything' },
-            { keys: ['Enter'], label: 'This shape · the whole one' },
+            { keys: ['Enter'], label: 'This shape · the whole one · a word, its paragraph' },
             // A terminal sends a plain carriage return for Ctrl+Enter, so the
             // modifier never arrives and the binding needs a letter of its own.
             { keys: ['Ctrl', 'Enter'], label: 'Everything joined to it', terminal: { keys: ['g'] } },

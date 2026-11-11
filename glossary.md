@@ -62,6 +62,8 @@ This is the heart of the editor and its five stages have their own words.
 | **closed** | A reading whose kind is `box` or `ellipse`. Narrower than *shape*: a box with a wire through its wall reads as `cells`, and is still a shape. |
 | **container** | A shape that something else sits wholly inside. Containment is inferred from geometry, never declared. |
 | **label** | The text written inside a shape, and how it was aligned. |
+| **block** | The text a **click** on a word takes: inside a shape, the label; loose on the page, the run plus any run directly above or below that shares a column with it. [`core/derive/label.ts`](src/core/derive/label.ts) |
+| **paragraph** | The text `Enter` on a word takes, and a stricter cut than the block: the **line** through the word — runs of characters at most one blank apart, a dash or a `+` between thoughts included, a wall or a wire never — plus the lines stacked directly above and below it whose first character is in the same column. A blank row or an indent ends it. [`core/derive/paragraph.ts`](src/core/derive/paragraph.ts) |
 | **travelling set** | Everything that moves when a shape moves: the shape, its label, and every component wholly inside it. Blank space is never included, which is why dropping a box around a word *adopts* the word instead of erasing it. |
 | **cascade** | The travelling set running downward through nesting. It never looks upward: a child has no way to drag its parent. |
 

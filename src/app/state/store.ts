@@ -75,6 +75,7 @@ import { endCells, endsOf, planLineEnd, type LineEnd } from '../../core/ops/line
 import { containersAt, enclosesArea } from '../../core/derive/contain.ts';
 import { travellingWith } from '../../core/derive/gather.ts';
 import { labelBoundsOf, textBlockAt } from '../../core/derive/label.ts';
+import { paragraphAt } from '../../core/derive/paragraph.ts';
 import type { Plan } from '../../core/ops/plan.ts';
 import { convertCharset } from '../../core/transform/convert.ts';
 import { planBanner, planBannerEdit } from '../../core/ops/banner.ts';
@@ -516,7 +517,7 @@ export interface EditorState {
   strideBy: (dx: number, dy: number) => void;
   /** The same jump, dragging a selection out to where it lands. */
   jumpSweep: (dx: number, dy: number) => void;
-  /** `Enter`: switch between the smallest shape here and the whole one. */
+  /** `Enter`: switch between the smallest shape here and the whole one — or a word and its paragraph. */
   cycleShape: () => void;
   /** `Ctrl`+`Enter`: everything connected, lines and what they lead to included. */
   selectConnected: () => void;
@@ -1160,6 +1161,17 @@ export const useEditor = create<EditorState>((set, get) => ({
     // to lean on — it never reaches past the shape you are standing in.
     const whole = [...list].reverse().find((c) => enclosesArea(c));
     if (whole !== undefined && !sameCells(whole, smallest ?? null)) rungs.push(whole);
+
+    // Text encloses nothing, so on a word the ladder above is one rung long:
+    // the word, and nowhere to go. Its second rung is the paragraph
+    // (B-SEL-19e) — the line of prose the word is in, dashes and all, and
+    // the lines stacked flush above and below it. Offered from a dash standing
+    // in the prose too, which is a one-cell line to the recognizer and
+    // punctuation to whoever typed it. A stricter cut than the block a click
+    // takes, because `Enter` is pressed with the word already in view and a
+    // flush left edge is what the eye calls a paragraph.
+    const paragraph = paragraphAt(grid, cursor.x, cursor.y);
+    if (paragraph !== null && !rungs.some((c) => sameCells(c, paragraph))) rungs.push(paragraph);
 
     // The rung is read back off the selection, never stored, so anything that
     // changes the selection another way starts again from the smallest.

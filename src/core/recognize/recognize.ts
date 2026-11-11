@@ -141,7 +141,7 @@ export function matchPath(grid: Grid, graph: RunGraph): 'line' | 'arrow' | null 
 }
 
 /** True for a cell holding something that is not part of any line. */
-function isTextCell(grid: Grid, x: number, y: number): boolean {
+export function isTextCell(grid: Grid, x: number, y: number): boolean {
   const ch = grid.get(ck(x, y));
   if (ch === undefined || ch === ' ') return false;
   return maskOf(grid, x, y) === 0 && links(grid, x, y).length === 0;

@@ -564,7 +564,7 @@ these differently because a tty cannot report the gesture — see
 | `Shift`+click | add the whole connected thing to the selection, or remove it |
 | `Ctrl`+click | add just the piece under the pointer — build a selection out of parts |
 | `Ctrl`+`A` / `Ctrl`+`D` | select all / duplicate |
-| `Enter` | switch between the smallest shape under the keyboard and the whole one |
+| `Enter` | switch between the smallest shape under the keyboard and the whole one · on a word, between the word and its paragraph |
 | `Ctrl`+`Enter` | everything joined up — lines, and whatever they run into |
 | `Delete` `Backspace` | erase the selection |
 | `Ctrl`+`Z` / `Ctrl`+`Y` | undo / redo |
