@@ -525,7 +525,7 @@ test.describe('the actions menu', () => {
     await ed.click(3, 4);
     await ed.rightClick(3, 4);
     await expect(page.locator(menu)).toBeVisible();
-    await expect(page.locator(`${menu} button`)).toHaveText(['Add column', 'Add row']);
+    await expect(page.locator(`${menu} button`)).toHaveText(['Add column', 'Add row', 'Style▸']);
   });
 
   test('it sits above the shape it acts on', async ({ page }) => {
@@ -2012,7 +2012,7 @@ test.describe('the actions menu from the keyboard (B-UI-11)', () => {
     await page.keyboard.press('Control+e');
 
     await expect(menu(page)).toBeVisible();
-    await expect(menu(page).getByRole('button')).toHaveText(['Add column', 'Add row']);
+    await expect(menu(page).getByRole('button')).toHaveText(['Add column', 'Add row', 'Style▸']);
   });
 
   test('and offers nothing for a shape with no lattice', async ({ page }) => {
@@ -2039,11 +2039,14 @@ test.describe('the actions menu from the keyboard (B-UI-11)', () => {
     await ed.press('ArrowRight');
     await expect(here(page)).toHaveText('Add row');
 
+    await ed.press('ArrowRight');
+    await expect(here(page)).toHaveText('Style▸');
+
     await ed.press('ArrowRight'); // wraps
     await expect(here(page)).toHaveText('Add column');
 
     await ed.press('ArrowLeft'); // wraps the other way
-    await expect(here(page)).toHaveText('Add row');
+    await expect(here(page)).toHaveText('Style▸');
   });
 
   test('down puts it away and changes nothing', async ({ page }) => {
@@ -2134,7 +2137,7 @@ test.describe('the actions menu over a keyboard-selected table (B-UI-11a)', () =
 
     await open(page);
     await expect(menu(page)).toBeVisible();
-    await expect(menu(page).getByRole('button')).toHaveText(['Add column', 'Add row']);
+    await expect(menu(page).getByRole('button')).toHaveText(['Add column', 'Add row', 'Style▸']);
   });
 
   test('and running it grows the whole table', async ({ page }) => {
@@ -2373,7 +2376,7 @@ test.describe('the menu over a line (B-UI-16)', () => {
     await ed.click(0, 0);
 
     await open(page);
-    await expect(menu(page).getByRole('button')).toHaveText(['Add column', 'Add row']);
+    await expect(menu(page).getByRole('button')).toHaveText(['Add column', 'Add row', 'Style▸']);
   });
 });
 
@@ -2694,6 +2697,43 @@ test.describe('enter widens, ctrl+enter takes everything joined up (B-SEL-19)', 
 
     await ed.press('Enter');
     expect(await ed.selection()).toContain('Text 3 chars');
+  });
+});
+
+test.describe('a box keeps its style (B-CS-07)', () => {
+  test('restyled from the menu, it stays rounded through a move and a resize', async ({
+    page,
+  }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    // A mark at the origin, so the text read back is not cropped to the box
+    // and its position shows.
+    await ed.click(0, 0);
+    await ed.mark('x');
+    await ed.tool('Box');
+    await ed.drag([2, 2], [10, 6]);
+    await ed.tool('Select');
+    await ed.click(2, 2);
+
+    // Style is the third item on a box's menu; Rounded the second pack.
+    await page.keyboard.press('Control+e');
+    await ed.press('ArrowRight');
+    await ed.press('ArrowRight');
+    await ed.press('Enter');
+    await ed.press('ArrowRight');
+    await ed.press('Enter');
+    expect((await ed.text()).split('\n')[2]).toBe('  ╭───────╮');
+
+    // Moved with Unicode active, it is redrawn with its own corners.
+    await page.keyboard.press('Control+ArrowRight');
+    expect((await ed.text()).split('\n')[2]).toBe('   ╭───────╮');
+
+    // And the wall pulled out two cells grows a rounded border too.
+    await ed.drag([14, 8], [11, 2]); // the right wall alone
+    expect(await ed.selection()).toContain('1×5');
+    await ed.drag([11, 4], [13, 4]);
+    expect((await ed.text()).split('\n')[2]).toBe('   ╭─────────╮');
   });
 });
 

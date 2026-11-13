@@ -55,6 +55,7 @@ import { segmentize } from '../recognize/segmentize.ts';
 import { matchEllipse, matchPath } from '../recognize/recognize.ts';
 import { enclosesArea } from '../derive/contain.ts';
 import { eraseWithHeal } from '../stamp/erase.ts';
+import { styleOf } from '../derive/style.ts';
 import { stampPolyline } from '../stamp/path.ts';
 
 export interface Connector {
@@ -759,7 +760,7 @@ export function rerouteDiff(
   for (const p of planned) {
     const head = p.c.headInWallAtFree;
     if (head === null || p.c.freeApproach === null) continue;
-    const wall = wallUnderHead(grid, head, p.c.freeApproach, cs);
+    const wall = wallUnderHead(grid, head, p.c.freeApproach, styleOf(grid, p.c.freeShape ?? [], cs));
     if (wall !== null) lift.set(ck(head.x, head.y), wall);
   }
 
@@ -780,7 +781,9 @@ export function rerouteDiff(
   applyDiff(canvas, mutation);
 
   for (const p of planned) {
-    const drawn = stampPolyline(canvas, p.vertices, cs, {
+    // Redrawn in the set the line was drawn in: a heavy arrow that follows its
+    // box is still a heavy arrow (B-CS-07).
+    const drawn = stampPolyline(canvas, p.vertices, styleOf(grid, p.c.cells, cs), {
       elbow: elbowFor(p.approach),
       headEnd: p.c.headed,
       headStart: p.c.headedAtFree,

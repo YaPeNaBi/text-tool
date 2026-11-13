@@ -12,6 +12,7 @@ import type { Charset } from '../charset/charsets.ts';
 import { cloneWithout, type CellDiff, type Grid } from '../grid/grid.ts';
 import { MIN_BOX, borderKeys, stampBox } from '../stamp/box.ts';
 import { drawnRing, stampEllipse } from '../stamp/ellipse.ts';
+import { styleOf } from '../derive/style.ts';
 
 /** Which stamper owns this outline. Adding a shape means adding a case here. */
 export type ResizeKind = 'box' | 'ellipse';
@@ -107,6 +108,10 @@ export function resizeRect(r: Rect, id: HandleId, dx = 0, dy = 0): Rect {
  * will re-route — which the new outline must not merge with either: a shaft
  * still lying against the wall would hand the redrawn cell a sideways arm, and
  * the wall would come out `┤` with the arrowhead then drawn beside it.
+ *
+ * The new outline is drawn in the set the old one was drawn in, not in `cs`,
+ * which decides only when the old glyphs cannot (B-CS-07): a heavy box pulled
+ * wider is a wider heavy box.
  */
 export function resizeBoxDiff(
   grid: Grid,
@@ -123,9 +128,10 @@ export function resizeBoxDiff(
   // Stamp against a grid that no longer holds the old outline, otherwise the
   // new border would merge with the one it is replacing.
   const without = cloneWithout(grid, [...old, ...lifted]);
+  const style = styleOf(grid, old, cs);
   const stamped = kind === 'ellipse'
-    ? stampEllipse(without, to, cs)
-    : stampBox(without, to, cs);
+    ? stampEllipse(without, to, style)
+    : stampBox(without, to, style);
 
   for (const [key, ch] of stamped) diff.set(key, ch);
   return diff;

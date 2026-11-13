@@ -86,6 +86,7 @@ off.
 | Resize | ✅ | Handles on a box or circle; the border is redrawn, not stretched. | [resize.ts](src/core/transform/resize.ts) |
 | Duplicate | ✅ | `Ctrl`+`D`, offset by one cell. | [store.ts](src/app/state/store.ts) |
 | Add column / add row | ✅ | Right-click a selected box. The box grows by one track, the old wall becomes a divider, and the new track is divided the way its neighbour is. | [ops/lattice.ts](src/core/ops/lattice.ts) · [ShapeMenu.tsx](src/app/components/ShapeMenu.tsx) |
+| Restyle a shape | ✅ | Right-click a box or a line → Style, previewed as you point. A shape that is moved, resized or grown keeps the character set it was drawn in, whatever the toolbar is set to. | [derive/style.ts](src/core/derive/style.ts) · [transform/convert.ts](src/core/transform/convert.ts) |
 | Resize a column or row | ✅ | Drag a separator, as in a spreadsheet. The track beside it changes width and everything past it shifts. | [ops/lattice.ts](src/core/ops/lattice.ts) |
 | Grow to fit the text | ✅ | Typing past the end of a box grows the box; past the end of a table cell widens the whole column, every row following. Whatever it comes up against is pushed along, not written over — but only once it is actually touched. | [ops/typing.ts](src/core/ops/typing.ts) |
 | Arrow keys in a table | ✅ | Step from cell to cell, as in a spreadsheet. `Shift`+arrow drags the cell instead, which is also how it leaves the table. The same division as a run of text: bare key moves you, Shift moves the thing. | [ops/lattice.ts](src/core/ops/lattice.ts) |

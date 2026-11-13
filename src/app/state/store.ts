@@ -72,7 +72,7 @@ import {
 } from '../../core/ops/lattice.ts';
 import { planNewline, planType } from '../../core/ops/typing.ts';
 import { endCells, endsOf, planLineEnd, type LineEnd } from '../../core/ops/lineend.ts';
-import { containersAt, enclosesArea } from '../../core/derive/contain.ts';
+import { containersAt, dividersInside, enclosesArea } from '../../core/derive/contain.ts';
 import { travellingWith } from '../../core/derive/gather.ts';
 import { labelBoundsOf, textBlockAt } from '../../core/derive/label.ts';
 import { paragraphAt } from '../../core/derive/paragraph.ts';
@@ -249,6 +249,38 @@ export function windowOf(row: readonly MenuNode[], at: number): MenuWindow {
 }
 
 /**
+ * The cells a restyle writes: the selection, and for a box its dividers too — a
+ * table whose walls changed weight while its lattice did not would be two
+ * things where there was one (B-CS-07).
+ */
+function restyled(grid: Grid, selection: Candidate): Set<CellKey> {
+  const cells = new Set(selection.cells);
+  if (enclosesArea(selection)) {
+    for (const key of dividersInside(grid, selection)) cells.add(key);
+  }
+  return cells;
+}
+
+/**
+ * The character sets, as a menu group (B-LINE-03). One group for a line and a
+ * box, so the two cannot drift. Each item previews: a list of pack names says
+ * nothing about what `Heavy` looks like on this shape (B-UI-16a).
+ */
+function styleGroup(what: 'line' | 'box'): MenuGroup {
+  return {
+    label: 'Style',
+    title: `Redraw this ${what} in another character set`,
+    items: Object.values(CHARSETS).map((cs) => ({
+      label: cs.label,
+      title: `Draw this ${what} with ${cs.label} characters`,
+      run: (s: EditorState) => { s.restyleSelection(cs.id); },
+      preview: (s: EditorState) =>
+        s.selection === null ? null : convertCharset(s.grid, cs, restyled(s.grid, s.selection)),
+    })),
+  };
+}
+
+/**
  * What the menu offers, worked out from what is selected.
  *
  * Here rather than in the component because the keyboard drives this menu as
@@ -256,9 +288,9 @@ export function windowOf(row: readonly MenuNode[], at: number): MenuWindow {
  * thing to the key that runs it as to the button that draws it. Two lists would
  * drift the first time one of them gained an entry.
  *
- * A box is offered its lattice; a line is offered its ends and the style it is
- * drawn in. Nothing else has anything to be asked about yet, and a menu that
- * opens on everything to say nothing is worse than one that stays shut.
+ * A box is offered its lattice and the style it is drawn in; a line its ends
+ * and its style. Nothing else has anything to be asked about yet, and a menu
+ * that opens on everything to say nothing is worse than one that stays shut.
  */
 export function menuFor(state: EditorState): readonly MenuNode[] {
   const { grid, selection } = state;
@@ -286,6 +318,8 @@ export function menuFor(state: EditorState): readonly MenuNode[] {
     return [
       { label: 'Add column', title: 'Widen the box by one column', run: (s) => s.addColumn() },
       { label: 'Add row', title: 'Deepen the box by one row', run: (s) => s.addRow() },
+      // Last, so the two lattice items keep the places the hand knows (B-UI-13).
+      styleGroup('box'),
     ];
   }
 
@@ -293,15 +327,7 @@ export function menuFor(state: EditorState): readonly MenuNode[] {
   if (ends === null) return [];
 
   return [
-    {
-      label: 'Style',
-      title: 'Redraw this line in another character set',
-      items: Object.values(CHARSETS).map((cs) => ({
-        label: cs.label,
-        title: `Draw this line with ${cs.label} characters`,
-        run: (s: EditorState) => { s.restyleSelection(cs.id); },
-      })),
-    },
+    styleGroup('line'),
     {
       label: 'Line end',
       title: 'What sits at each end of the line',
@@ -1397,7 +1423,7 @@ export const useEditor = create<EditorState>((set, get) => ({
 
     const cs = charsetOf(charsetId);
     get().runPlan(
-      { diff: convertCharset(grid, cs, selection.cells), selection },
+      { diff: convertCharset(grid, cs, restyled(grid, selection)), selection },
       { keepSelection: true },
     );
   },

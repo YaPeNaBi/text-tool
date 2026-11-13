@@ -28,6 +28,7 @@ import type { Candidate } from '../recognize/recognize.ts';
 import { enclosesArea, isClosed } from '../derive/contain.ts';
 import { travellingWith } from '../derive/gather.ts';
 import { sharedCells } from '../derive/shared.ts';
+import { styleAround, styleOf } from '../derive/style.ts';
 import { stampBox } from '../stamp/box.ts';
 import { stampEllipse } from '../stamp/ellipse.ts';
 import { findConnectors, rerouteDiff, wallsUnderHeads } from '../route/connectors.ts';
@@ -178,7 +179,11 @@ export function planMove(
   // A head standing in the mover's own wall is the connector's (B-MAN-11g):
   // the re-route redraws it one cell short of the wall, so what travels in its
   // place is the wall glyph it stood in for, not a second head.
-  const underHeads = wallsUnderHeads(grid, connectors, opts.charset);
+  const underHeads = wallsUnderHeads(
+    grid,
+    connectors,
+    styleOf(grid, selection.cells, opts.charset),
+  );
 
   const moved = detach(grid, selection, cells, ddx, ddy, opts.charset, lifted, underHeads);
   const diffs: CellDiff[] = [moved];
@@ -277,17 +282,21 @@ function detach(
 
   // Re-derive the cells left behind: a `┬` that has lost its westward arm is a
   // `┌`, and a cell that has lost everything was never the neighbour's after
-  // all, so it goes.
+  // all, so it goes. In the neighbour's own set, read off what it still joins
+  // (B-CS-07) — these are its cells now.
   const repair: CellDiff = new Map();
   for (const key of shared) {
     const { x, y } = unck(key);
     const mask = neighbourMask(after, x, y);
-    repair.set(key, mask === 0 ? null : glyphFor(mask, cs));
+    repair.set(key, mask === 0 ? null : glyphFor(mask, styleAround(after, x, y, mask, cs)));
   }
   applyDiff(after, repair);
   applyDiff(after, carried);
 
-  const outline = stampShape(after, rectShifted(selection.bounds, dx, dy), selection.kind, cs);
+  // Redrawn in the set it was drawn in, not the active one: moving a rounded
+  // box must not square its corners (B-CS-07).
+  const style = styleOf(grid, selection.cells, cs);
+  const outline = stampShape(after, rectShifted(selection.bounds, dx, dy), selection.kind, style);
   return merge(lift, repair, carried, outline);
 }
 

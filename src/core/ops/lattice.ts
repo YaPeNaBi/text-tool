@@ -46,6 +46,7 @@ import { borderKeys, stampBox } from '../stamp/box.ts';
 import { stampPath } from '../stamp/path.ts';
 import { moveDiff } from '../transform/move.ts';
 import { findConnectors, rerouteDiff, wallsUnderHeads } from '../route/connectors.ts';
+import { styleOf } from '../derive/style.ts';
 import { merge, nothing, refuse, type Plan } from './plan.ts';
 
 export interface LatticeOptions {
@@ -149,9 +150,13 @@ function planGrow(
     for (const key of c.cells) lifted.add(key);
   }
 
+  // The box grows in the set it was drawn in (B-CS-07); the active one is
+  // only the tie-breaker.
+  const style = styleOf(grid, selection.cells, opts.charset);
+
   const after = cloneWithout(grid, lifted);
   applyDiff(after, shove);
-  const grown = stampBox(after, to, opts.charset);
+  const grown = stampBox(after, to, style);
   applyDiff(after, grown);
 
   // Carry the neighbouring band's dividers through the new track, drawn against
@@ -160,7 +165,7 @@ function planGrow(
   // `┤`. Same stamper, same merging rules as a line drawn by hand.
   const diffs: CellDiff[] = [shove, grown];
   for (const rail of rails) {
-    const drawn = stampPath(after, rail.from, rail.to, opts.charset);
+    const drawn = stampPath(after, rail.from, rail.to, style);
     applyDiff(after, drawn);
     diffs.push(drawn);
   }
@@ -358,7 +363,9 @@ export function planResizeTrack(
   // glyph it replaced rather than as a second head (B-MAN-11g).
   const connectors =
     opts.sticky === false ? [] : findConnectors(grid, new Set(borderKeys(table)));
-  const underHeads = wallsUnderHeads(grid, connectors, opts.charset);
+  // What fills the gap is drawn in the table's own set, not the active one (B-CS-07).
+  const style = styleOf(grid, borderKeys(table), opts.charset);
+  const underHeads = wallsUnderHeads(grid, connectors, style);
 
   const diff: CellDiff = new Map();
 
@@ -402,7 +409,7 @@ export function planResizeTrack(
       const { x, y } = unck(at(rail, c));
       const runs = (maskOf(grid, x, y) & sideways) !== 0;
       for (let k = 0; k < delta; k++) {
-        diff.set(at(rail + k, c), runs ? glyphFor(sideways, opts.charset) : null);
+        diff.set(at(rail + k, c), runs ? glyphFor(sideways, style) : null);
       }
     }
   }

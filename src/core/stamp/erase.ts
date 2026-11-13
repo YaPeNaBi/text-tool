@@ -18,6 +18,7 @@ import {
   type Charset,
 } from '../charset/charsets.ts';
 import { maskOf, type CellDiff, type Grid } from '../grid/grid.ts';
+import { styleAround } from '../derive/style.ts';
 
 export const MIN_BRUSH = 1;
 export const MAX_BRUSH = 9;
@@ -38,7 +39,8 @@ export function brushKeys(c: Cell, size: number): CellKey[] {
 
 /**
  * Erase `keys`, then mend the line cells that bordered them.
- * `cs` is the active charset, so repaired glyphs match what is being drawn now.
+ * `cs` is the active charset; a mend is drawn in the set the wall around it is
+ * drawn in, and `cs` decides only where the glyphs themselves cannot (B-CS-07).
  */
 export function eraseWithHeal(
   grid: Grid,
@@ -73,7 +75,10 @@ export function eraseWithHeal(
     const next = maskOf(grid, x, y) & ~dropped;
     if (next === 0) continue; // a lone stub keeps its glyph rather than vanishing
 
-    const glyph = glyphFor(next, cs);
+    // In the wall's own set rather than the active one, read off the cells it
+    // still connects to (B-CS-07): a `┤` left where a thin wire met a heavy
+    // wall goes back to `┃`, not to `│`.
+    const glyph = glyphFor(next, styleAround(grid, x, y, next, cs));
     if (glyph !== '' && glyph !== grid.get(key)) diff.set(key, glyph);
   }
   return diff;

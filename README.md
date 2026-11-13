@@ -549,7 +549,7 @@ these differently because a tty cannot report the gesture — see
 | `Enter` | commit what the keyboard is drawing, through wherever the cursor has got to |
 | `t`, then type | writes at the keyboard cursor. Click a word first and `t` opens it at the character you clicked |
 | with **huge letters** selected: `t`, then type | adds letters in the same font · `Backspace` removes one whole letter · `Enter` drops a full font-height · `Space` leaves a space of the right width |
-| right-click a selection · `Ctrl`+`E` | actions: a box's columns and rows, a line's ends and style, **a run of text's font** |
+| right-click a selection · `Ctrl`+`E` | actions: a box's columns, rows and style, a line's ends and style, **a run of text's font** |
 | in the font list | pointing at one draws it on the canvas before you choose — arrow keys, or the mouse. A row shows five at a time, with `‹ ›` where it carries on |
 | in that menu: `Enter` | open the highlighted group, or run the highlighted item · `Esc` backs out one level |
 | in that menu: `←` `→` · `Enter` · `↓` | step between the options · run the highlighted one · put it away |
