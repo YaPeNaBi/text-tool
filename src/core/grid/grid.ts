@@ -101,7 +101,16 @@ export function maskOf(grid: Grid, x: number, y: number): number {
     const { dx, dy } = dirDelta(tail);
     const shaft = grid.get(ck(x + dx, y + dy));
     if (!isStrongLineChar(shaft)) return 0;
-    return (declaredMask(shaft) & points) === 0 ? 0 : tail;
+    if ((declaredMask(shaft) & points) === 0) return 0;
+    // An arrowhead standing *in* a wall — where the `┤` would be had the line
+    // merged instead of landing — carries the wall's arms too, so the wall is
+    // whole through it (B-CONN-07a). The editor's own arrow tool stops a cell
+    // short of a wall (B-DRAW-10a); this is for what is pasted, loaded or
+    // nudged onto one. Only with a line glyph on **both** sides across the
+    // arrow's axis, each pointing at it: one side alone is the end of
+    // something, not a wall. Read from declared arms, like the shaft, so an
+    // ambiguous glyph asking this cell below never comes round again.
+    return tail | wallArmsAcross(grid, x, y, points);
   }
 
   if (!isStrongLineChar(ch)) return 0;
@@ -112,10 +121,35 @@ export function maskOf(grid: Grid, x: number, y: number): number {
   let narrowed = 0;
   for (const { d, dx, dy } of DIRS) {
     const nb = grid.get(ck(x + dx, y + dy));
-    if (!isStrongLineChar(nb)) continue;
-    if (declaredMask(nb) & opposite(d)) narrowed |= d;
+    if (isStrongLineChar(nb)) {
+      if (declaredMask(nb) & opposite(d)) narrowed |= d;
+    } else if (arrowDir(nb) !== null && (maskOf(grid, x + dx, y + dy) & opposite(d)) !== 0) {
+      // An arrowhead answers back through the arms it has earned above — its
+      // shaft, or the wall it stands in (B-CONN-07a). Those are read from
+      // declared masks alone, so asking it is not a question that recurses;
+      // and without it an ASCII `+` corner would turn its back on the `>`
+      // standing in the wall beneath it.
+      narrowed |= d;
+    }
   }
   return narrowed === 0 ? declared : narrowed;
+}
+
+/**
+ * The two arms across an arrowhead's axis, when a wall runs through its cell:
+ * both neighbours across it are line glyphs declaring an arm toward it. Zero
+ * when either is missing (B-CONN-07a).
+ */
+function wallArmsAcross(grid: Grid, x: number, y: number, points: Dir): number {
+  const across = points === E || points === W ? [N, S] : [E, W];
+  let arms = 0;
+  for (const d of across) {
+    const { dx, dy } = dirDelta(d as Dir);
+    const nb = grid.get(ck(x + dx, y + dy));
+    if (!isStrongLineChar(nb) || (declaredMask(nb) & opposite(d as Dir)) === 0) return 0;
+    arms |= d;
+  }
+  return arms;
 }
 
 /**

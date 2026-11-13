@@ -317,7 +317,8 @@ neighbours, every time it is needed:
   what lets hand-written ASCII art be understood with no metadata at all.
 - Arrowheads (`>`, `▶`, …) are *weak*: they only count as part of a line when there
   is a real shaft behind them. Otherwise `v` in the middle of a word would be
-  mistaken for a diagram.
+  mistaken for a diagram. One standing *in* a wall, with the wall on both sides of
+  it, carries the wall's arms too, so a border an arrow has landed on stays whole.
 - Everything else is text, and is never traced through.
 
 ### The matchers

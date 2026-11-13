@@ -30,7 +30,7 @@ import { travellingWith } from '../derive/gather.ts';
 import { sharedCells } from '../derive/shared.ts';
 import { stampBox } from '../stamp/box.ts';
 import { stampEllipse } from '../stamp/ellipse.ts';
-import { findConnectors, rerouteDiff } from '../route/connectors.ts';
+import { findConnectors, rerouteDiff, wallsUnderHeads } from '../route/connectors.ts';
 import { moveDiff } from '../transform/move.ts';
 import { merge, nothing, type Plan } from './plan.ts';
 import { planSideDrag } from './resize.ts';
@@ -175,7 +175,12 @@ export function planMove(
     for (const key of c.cells) lifted.add(key);
   }
 
-  const moved = detach(grid, selection, cells, ddx, ddy, opts.charset, lifted);
+  // A head standing in the mover's own wall is the connector's (B-MAN-11g):
+  // the re-route redraws it one cell short of the wall, so what travels in its
+  // place is the wall glyph it stood in for, not a second head.
+  const underHeads = wallsUnderHeads(grid, connectors, opts.charset);
+
+  const moved = detach(grid, selection, cells, ddx, ddy, opts.charset, lifted, underHeads);
   const diffs: CellDiff[] = [moved];
 
   let note: string | undefined;
@@ -227,10 +232,20 @@ function detach(
   dy: number,
   cs: Charset,
   lifted: ReadonlySet<CellKey> = new Set(),
+  underHeads: ReadonlyMap<CellKey, string> = new Map(),
 ): CellDiff {
   // An open shape is only ever translated: there is no canonical outline to
-  // redraw it from, and its glyphs are all it is.
-  if (!isClosed(selection)) return moveDiff(grid, cells, dx, dy);
+  // redraw it from, and its glyphs are all it is — except a wall cell an
+  // arrowhead stands in, which travels as the wall (B-MAN-11g).
+  if (!isClosed(selection)) {
+    const diff = moveDiff(grid, cells, dx, dy);
+    for (const [key, wall] of underHeads) {
+      if (!cells.has(key)) continue;
+      const { x, y } = unck(key);
+      diff.set(ck(x + dx, y + dy), wall);
+    }
+    return diff;
+  }
 
   // Asked about the whole travelling set, not just the outline. A divided box
   // reads as several rectangles sharing walls, and asking about the outline
@@ -248,7 +263,7 @@ function detach(
   const carried: CellDiff = new Map();
   for (const key of cells) {
     if (selection.cells.has(key)) continue;
-    const ch = grid.get(key);
+    const ch = underHeads.get(key) ?? grid.get(key);
     if (ch === undefined) continue;
     const { x, y } = unck(key);
     carried.set(ck(x + dx, y + dy), ch);

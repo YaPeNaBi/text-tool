@@ -71,7 +71,7 @@ This is the heart of the editor and its five stages have their own words.
 
 | Term | Meaning |
 |---|---|
-| **connector** | A line **attached to a shape**: it runs into the shape, or an arrowhead is aimed at it. Looser than *connected* on purpose — a line drawn up to a `│` does not join it, because that wall offers no sideways arm. |
+| **connector** | A line **attached to a shape**: it runs into the shape, or an arrowhead is aimed at it. Looser than *connected* on purpose — a line drawn up to a `│` does not join it, because that wall offers no sideways arm. An arrowhead that stands *in* the wall — where a `┤` would be — is the connector's head too, and the wall is whole through it (B-CONN-07a). |
 | **sticky** | Connectors are re-routed to follow the shape they are attached to when it moves or resizes. |
 | **anchor end / free end** | The connector's two ends. On a re-route the free end **stays exactly where it was** and the path is redrawn from there — which is what makes this routing rather than translation. |
 | **stroke** | A freehand drag, as the list of cells the pointer passed through. Densified into a 4-connected walk before it is drawn, because samples arrive with gaps. |

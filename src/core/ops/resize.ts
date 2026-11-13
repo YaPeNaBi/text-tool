@@ -74,8 +74,17 @@ export function planResize(
     }
   }
 
+  // Find the connectors *first*, as the move does: their cells are about to be
+  // lifted, and the outline must not be redrawn against a grid that still holds
+  // them, or a shaft ending at the wall leaves the redrawn cell wearing its arm.
+  const connectors = opts.sticky === false ? [] : findConnectors(grid, selection.cells);
+  const lifted = new Set<CellKey>();
+  for (const c of connectors) {
+    for (const key of c.cells) lifted.add(key);
+  }
+
   const kind = selection.kind === 'ellipse' ? 'ellipse' : 'box';
-  const redraw = resizeBoxDiff(grid, from, to, opts.charset, kind);
+  const redraw = resizeBoxDiff(grid, from, to, opts.charset, kind, lifted);
   const diffs = [redraw];
 
   // Keep the label sitting the way it was put (content §9).
@@ -85,8 +94,7 @@ export function planResize(
   }
 
   let note: string | undefined;
-  if (opts.sticky !== false) {
-    const connectors = findConnectors(grid, selection.cells);
+  if (connectors.length > 0) {
     const landed = outlineOf(to, selection.kind);
     const routed = rerouteDiff(grid, landed, connectors, merge(...diffs), opts.charset);
     diffs.push(routed.diff);

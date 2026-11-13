@@ -2697,6 +2697,41 @@ test.describe('enter widens, ctrl+enter takes everything joined up (B-SEL-19)', 
   });
 });
 
+test.describe('an arrowhead standing in a wall (B-CONN-07a, B-MAN-11g)', () => {
+  test('the box is still a box, the arrow still an arrow, and the box still moves as one', async ({
+    page,
+  }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    // The arrow tool stops one cell short of the wall (B-DRAW-10a); nudging
+    // the arrow one cell further lands its head on the wall, which is the
+    // picture a paste or a load can also bring in.
+    await ed.tool('Box');
+    await ed.drag([13, 0], [38, 9]);
+    await ed.tool('Arrow');
+    await ed.drag([0, 4], [13, 4]);
+    await ed.tool('Select');
+    await ed.click(5, 4);
+    await page.keyboard.press('Control+ArrowRight');
+    expect((await ed.text()).split('\n')[4]).toBe(`${'─'.repeat(12)}▶${' '.repeat(24)}│`);
+
+    await ed.click(13, 2);
+    expect(await ed.selection()).toContain('Box 26×10');
+    await ed.click(5, 4);
+    expect(await ed.selection()).toContain('Arrow 13 cells');
+
+    // Moving the box takes the wall whole and redraws the arrow one cell short
+    // of it, the editor's own convention.
+    await ed.click(13, 2);
+    await page.keyboard.press('Control+ArrowRight');
+    await page.keyboard.press('Control+ArrowRight');
+    expect((await ed.text()).split('\n')[4]).toBe(`${'─'.repeat(13)}▶│${' '.repeat(24)}│`);
+    await ed.click(15, 2);
+    expect(await ed.selection()).toContain('Box 26×10');
+  });
+});
+
 test.describe('ctrl+click builds a selection out of pieces (B-SEL-09a)', () => {
   /** Two boxes wired together: one component, three pieces. */
   async function wired(ed: Editor): Promise<void> {

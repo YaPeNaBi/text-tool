@@ -100,13 +100,21 @@ export function resizeRect(r: Rect, id: HandleId, dx = 0, dy = 0): Rect {
   return { x: left, y: top, w: right - left + 1, h: bottom - top + 1 };
 }
 
-/** Lift the old border, stamp the new one. One diff, so one undo step. */
+/**
+ * Lift the old border, stamp the new one. One diff, so one undo step.
+ *
+ * `lifted` are cells the caller is about to erase as well — the connectors it
+ * will re-route — which the new outline must not merge with either: a shaft
+ * still lying against the wall would hand the redrawn cell a sideways arm, and
+ * the wall would come out `┤` with the arrowhead then drawn beside it.
+ */
 export function resizeBoxDiff(
   grid: Grid,
   from: Rect,
   to: Rect,
   cs: Charset,
   kind: ResizeKind = 'box',
+  lifted: Iterable<CellKey> = [],
 ): CellDiff {
   const diff: CellDiff = new Map();
   const old = kind === 'ellipse' ? [...drawnRing(grid, from)] : borderKeys(from);
@@ -114,7 +122,7 @@ export function resizeBoxDiff(
 
   // Stamp against a grid that no longer holds the old outline, otherwise the
   // new border would merge with the one it is replacing.
-  const without = cloneWithout(grid, old);
+  const without = cloneWithout(grid, [...old, ...lifted]);
   const stamped = kind === 'ellipse'
     ? stampEllipse(without, to, cs)
     : stampBox(without, to, cs);

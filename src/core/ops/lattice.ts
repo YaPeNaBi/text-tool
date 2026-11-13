@@ -45,7 +45,7 @@ import { trace } from '../recognize/trace.ts';
 import { borderKeys, stampBox } from '../stamp/box.ts';
 import { stampPath } from '../stamp/path.ts';
 import { moveDiff } from '../transform/move.ts';
-import { findConnectors, rerouteDiff } from '../route/connectors.ts';
+import { findConnectors, rerouteDiff, wallsUnderHeads } from '../route/connectors.ts';
 import { merge, nothing, refuse, type Plan } from './plan.ts';
 
 export interface LatticeOptions {
@@ -353,6 +353,13 @@ export function planResizeTrack(
     ? { from: table.y, to: table.y + table.h - 1 }
     : { from: table.x, to: table.x + table.w - 1 };
 
+  // Found first, as everywhere else that redraws a wall: a head standing in
+  // the wall is the connector's, and the cell it stood in shifts as the wall
+  // glyph it replaced rather than as a second head (B-MAN-11g).
+  const connectors =
+    opts.sticky === false ? [] : findConnectors(grid, new Set(borderKeys(table)));
+  const underHeads = wallsUnderHeads(grid, connectors, opts.charset);
+
   const diff: CellDiff = new Map();
 
   // Whatever is standing where the shape is about to be gets pushed along
@@ -371,9 +378,14 @@ export function planResizeTrack(
   // Shift what was there.
   for (let c = cross.from; c <= cross.to; c++) {
     for (let a = rail; a <= far; a++) {
-      const ch = grid.get(at(a, c));
+      const key = at(a, c);
+      const ch = underHeads.get(key) ?? grid.get(key);
       if (ch !== undefined) diff.set(at(a + delta, c), ch);
     }
+  }
+  // A head in a wall that is staying put still gives its cell back to the wall.
+  for (const [key, wall] of underHeads) {
+    if (!diff.has(key)) diff.set(key, wall);
   }
   for (const key of pushed) {
     const p = unck(key);
@@ -402,14 +414,10 @@ export function planResizeTrack(
   const diffs: CellDiff[] = [diff];
   let note: string | undefined;
 
-  if (opts.sticky !== false) {
-    const outline = new Set(borderKeys(table));
-    const connectors = findConnectors(grid, outline);
-    if (connectors.length > 0) {
-      const routed = rerouteDiff(grid, new Set(borderKeys(to)), connectors, diff, opts.charset);
-      diffs.push(routed.diff);
-      note = routed.note;
-    }
+  if (connectors.length > 0) {
+    const routed = rerouteDiff(grid, new Set(borderKeys(to)), connectors, diff, opts.charset);
+    diffs.push(routed.diff);
+    note = routed.note;
   }
 
   return {

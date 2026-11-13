@@ -35,6 +35,7 @@ import {
   W,
   arrowDir,
   dirDelta,
+  glyphFor,
   opposite,
   type Charset,
   type Dir,
@@ -77,6 +78,15 @@ export interface Connector {
   headed: boolean;
   /** True when the *far* end carries one, so redrawing keeps it. */
   headedAtFree: boolean;
+  /**
+   * The shape's own wall cell the head stands in, when the arrow landed **on**
+   * the wall rather than stopping beside it (B-CONN-07a). The wall goes back
+   * under it on a re-route and the head is redrawn one cell short (B-MAN-11g).
+   * Null when the head, if there is one, is the connector's own last cell.
+   */
+  headInWall: Cell | null;
+  /** The same at the far end, in the far shape's wall. */
+  headInWallAtFree: Cell | null;
 }
 
 /** More than this attached to one shape and re-routing stops being helpful. */
@@ -241,6 +251,48 @@ function approachFrom(grid: Grid, cell: Cell, shape: ReadonlySet<CellKey>): Dir 
 }
 
 /**
+ * The wall cell an arrowhead stands in, when the line ending at `end` runs into
+ * one: the next cell along `approach` holds an arrowhead pointing that same
+ * way, into the shape (B-CONN-07a). Null when the wall there is plain — the
+ * usual case, the head having stopped one cell short of it (B-DRAW-10a).
+ */
+function headInWallAt(grid: Grid, end: Cell, approach: Dir): Cell | null {
+  const { dx, dy } = dirDelta(approach);
+  const wall: Cell = { x: end.x + dx, y: end.y + dy };
+  return arrowDir(grid.get(ck(wall.x, wall.y))) === approach ? wall : null;
+}
+
+/**
+ * The wall glyph to put back where an arrowhead stood in it: the head's arms
+ * less the tail toward its shaft, which lies against `approach` (B-MAN-11g).
+ * Null when it was not standing in a wall after all.
+ */
+export function wallUnderHead(grid: Grid, head: Cell, approach: Dir, cs: Charset): string | null {
+  const mask = maskOf(grid, head.x, head.y) & ~opposite(approach);
+  return mask === 0 ? null : glyphFor(mask, cs);
+}
+
+/**
+ * For every connector whose head stands in the moving shape's own wall, the
+ * wall glyph that should travel in its place, keyed by that cell (B-MAN-11g).
+ * A shape carried glyph for glyph — a cell-set selection, a shifted track —
+ * substitutes these as it goes; a redrawn outline never needs them.
+ */
+export function wallsUnderHeads(
+  grid: Grid,
+  connectors: readonly Connector[],
+  cs: Charset,
+): Map<CellKey, string> {
+  const out = new Map<CellKey, string>();
+  for (const c of connectors) {
+    if (c.headInWall === null) continue;
+    const wall = wallUnderHead(grid, c.headInWall, c.approach, cs);
+    if (wall !== null) out.set(ck(c.headInWall.x, c.headInWall.y), wall);
+  }
+  return out;
+}
+
+/**
  * Which way something else sits next to this end.
  *
  * Deliberately looser than `approachFrom`: a line drawn up against a border
@@ -355,6 +407,15 @@ export function findConnectors(grid: Grid, shape: ReadonlySet<CellKey>): Connect
       // an invention — so that case is left exactly as it was: alone.
       if (narrowed && !isShape(freeShape)) continue;
 
+      // A head standing in the wall itself is the connector's, not the wall's
+      // (B-MAN-11g). At the far end only when there is a shape to redraw it
+      // against: a loose end stays exactly where it is, head and all.
+      const wallHead = headInWallAt(grid, cell, approach);
+      const farWallHead =
+        freeShape !== null && freeApproach !== null
+          ? headInWallAt(grid, free, freeApproach)
+          : null;
+
       found.push({
         cells,
         anchor: cell,
@@ -362,8 +423,10 @@ export function findConnectors(grid: Grid, shape: ReadonlySet<CellKey>): Connect
         free,
         freeApproach,
         freeShape,
-        headed: arrowDir(grid.get(outside)) !== null,
-        headedAtFree: arrowDir(grid.get(ck(free.x, free.y))) !== null,
+        headed: wallHead !== null || arrowDir(grid.get(outside)) !== null,
+        headedAtFree: farWallHead !== null || arrowDir(grid.get(ck(free.x, free.y))) !== null,
+        headInWall: wallHead,
+        headInWallAtFree: farWallHead,
       });
       if (found.length >= MAX_CONNECTORS) return found;
     }
@@ -688,6 +751,17 @@ export function rerouteDiff(
     for (const key of p.c.cells) lifted.add(key);
   }
   const lift = eraseWithHeal(grid, lifted, cs);
+
+  // A head standing in the far shape's wall goes with its line, and the wall is
+  // put back under it (B-MAN-11g); the redrawn line wears the head one cell
+  // short instead (B-DRAW-10a). The near wall is the moving shape's own to
+  // redraw, so it is left to the mutation.
+  for (const p of planned) {
+    const head = p.c.headInWallAtFree;
+    if (head === null || p.c.freeApproach === null) continue;
+    const wall = wallUnderHead(grid, head, p.c.freeApproach, cs);
+    if (wall !== null) lift.set(ck(head.x, head.y), wall);
+  }
 
   // Lifting the old line must not erase the shape that has just arrived on it.
   // When a box is dragged *closer*, the space its connector used to occupy is
