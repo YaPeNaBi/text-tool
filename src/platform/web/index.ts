@@ -27,6 +27,10 @@ const RECENT_MAX = 8;
 // which has no use for a drawing, and tops out at four kilobytes, which a
 // drawing can pass in an afternoon.
 const KEPT_KEY = 'ascii-writer:kept';
+// The colour theme (B-UI-18). `index.html` reads this same key before the first
+// paint, so a dark page never flashes light while the app loads — change one,
+// change both.
+const THEME_KEY = 'ascii-writer:theme';
 
 const PICKER_OPTS = {
   types: [
@@ -196,6 +200,22 @@ export function createWebAdapter(): PlatformAdapter {
     kept() {
       try {
         return asKept(localStorage.getItem(KEPT_KEY));
+      } catch {
+        return null;
+      }
+    },
+
+    keepTheme(theme) {
+      try {
+        localStorage.setItem(THEME_KEY, theme);
+      } catch {
+        /* the theme still applies; it only will not be remembered */
+      }
+    },
+
+    keptTheme() {
+      try {
+        return localStorage.getItem(THEME_KEY);
       } catch {
         return null;
       }

@@ -24,7 +24,7 @@
  */
 
 import { writeSync } from 'node:fs';
-import { COLORS, NOTICE_MS } from '../app/canvas/palette.ts';
+import { NOTICE_MS, PALETTES } from '../app/canvas/palette.ts';
 import { saveDocument, useEditor } from '../app/state/store.ts';
 import { installPlatform, platform } from '../platform/index.ts';
 import { createTerminalAdapter } from '../platform/terminal/index.ts';
@@ -51,6 +51,7 @@ const USAGE = `ascii writer — a diagram editor whose document is plain text
 
   file.txt   open it, or start a new document with that name
   --no-band  start with the key band hidden
+  --dark     start in the dark theme (F4 switches)
   --help     this
 
   Inside: F1 shows every key for the current mode. Ctrl+X leaves.
@@ -100,9 +101,12 @@ function main(): void {
 
   let band = !args.includes('--no-band');
   const argPath = args.find((a) => !a.startsWith('-'));
+  // Light is the default here as everywhere (B-UI-18), and a terminal keeps
+  // nothing between runs (B-FILE-06) — so a dark terminal says so on the way in.
+  if (args.includes('--dark')) useEditor.getState().setTheme('dark');
 
   const { width, height } = size();
-  const screen = new Screen(width, height, COLORS.bg);
+  const screen = new Screen(width, height, PALETTES[useEditor.getState().theme].bg);
   const pointer = createPointer();
 
   /**

@@ -29,6 +29,7 @@ import { handleAt, resizeRect, type HandleId } from '../../core/transform/resize
 import { brushAt, selectionHas, useEditor } from '../state/store.ts';
 import { clampZoom, metricsFor, screenToCell } from './camera.ts';
 import { elbowFor, previewOf, type Drag } from './gesture.ts';
+import { PALETTES } from './palette.ts';
 import { render } from './renderer.ts';
 import { installKeyboard } from './keymap.ts';
 import { ShapeMenu } from '../components/ShapeMenu.tsx';
@@ -57,6 +58,7 @@ export function CanvasView(): React.JSX.Element {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [caretOn, setCaretOn] = useState(true);
   const caretRows = useEditor((s) => s.caretRows());
+  const theme = useEditor((s) => s.theme);
 
   // The ref is the source of truth for handlers; the state copy exists so the
   // canvas redraws. Reading state inside a handler would go stale whenever two
@@ -186,6 +188,7 @@ export function CanvasView(): React.JSX.Element {
 
     render({
       ctx,
+      palette: PALETTES[theme],
       width: size.w,
       height: size.h,
       grid,
@@ -205,6 +208,7 @@ export function CanvasView(): React.JSX.Element {
       cursor: keyPoint,
     });
   }, [
+    theme,
     caretRows,
     size,
     grid,

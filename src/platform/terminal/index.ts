@@ -271,5 +271,15 @@ export function createTerminalAdapter(ask: () => LinePrompt | null): TerminalPla
     kept() {
       return null;
     },
+
+    // Nothing kept between runs here either (B-FILE-06): `--dark` and F4 are
+    // the terminal's way to the other theme (B-UI-18).
+    keepTheme() {
+      /* nothing is written uninvited */
+    },
+
+    keptTheme() {
+      return null;
+    },
   };
 }

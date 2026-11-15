@@ -145,7 +145,7 @@ export class Screen {
   /** Last frame, per row, so an unchanged row costs one string compare. */
   private painted: string[] = [];
   /** The page colour: every untouched cell, and what the washes composite over. */
-  readonly bg: number;
+  bg: number;
 
   constructor(width: number, height: number, bgCss: string) {
     this.width = width;
@@ -153,6 +153,16 @@ export class Screen {
     this.bg = colorOf(bgCss);
     this.cells = [];
     this.resize(width, height);
+  }
+
+  /**
+   * A new page colour, for a theme switch (B-UI-18). Cells are cleared to it
+   * from the next frame on, and every row comes out different — its closing
+   * escape names the page colour — so the whole screen repaints with nothing
+   * further to invalidate.
+   */
+  setBackground(bgCss: string): void {
+    this.bg = colorOf(bgCss);
   }
 
   resize(width: number, height: number): void {

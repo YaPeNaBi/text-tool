@@ -18,6 +18,8 @@ export function Toolbar(): React.JSX.Element {
   const setNotice = useEditor((s) => s.setNotice);
   const sticky = useEditor((s) => s.sticky);
   const toggleSticky = useEditor((s) => s.toggleSticky);
+  const theme = useEditor((s) => s.theme);
+  const toggleTheme = useEditor((s) => s.toggleTheme);
   const openSave = useEditor((s) => s.openSave);
 
   // One shared transient message, cleared on a timer.
@@ -62,6 +64,10 @@ export function Toolbar(): React.JSX.Element {
             onChange={toggleSticky}
           />
           Sticky
+        </label>
+        <label className="check" title="Dark theme — light is the default, and the choice is remembered">
+          <input type="checkbox" checked={theme === 'dark'} onChange={toggleTheme} />
+          Dark
         </label>
       </div>
 

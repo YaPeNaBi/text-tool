@@ -99,6 +99,7 @@ import {
   type Camera,
   type OriginMode,
 } from '../canvas/camera.ts';
+import { DEFAULT_THEME, isTheme, type Theme } from '../canvas/palette.ts';
 import type { ToolId } from '../tools.ts';
 
 /**
@@ -491,6 +492,8 @@ export interface EditorState {
 
   tool: ToolId;
   charsetId: string;
+  /** Light or dark (B-UI-18). Session state, kept by the platform where it can. */
+  theme: Theme;
   selection: Candidate | null;
   drill: Drill | null;
   camera: Camera;
@@ -601,6 +604,8 @@ export interface EditorState {
   setBrush: (n: number) => void;
   toggleInsertMode: () => void;
   toggleSticky: () => void;
+  setTheme: (theme: Theme) => void;
+  toggleTheme: () => void;
   setNotice: (text: string | null) => void;
   openSave: () => void;
   closeSave: () => void;
@@ -749,6 +754,7 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   tool: 'select',
   charsetId: 'unicode', // B-CS-01
+  theme: DEFAULT_THEME, // B-UI-18
   selection: null,
   drill: null,
   camera: { ox: 0, oy: 0, zoom: 1 },
@@ -878,6 +884,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   toggleInsertMode: () => set({ insertMode: !get().insertMode }),
 
   toggleSticky: () => set({ sticky: !get().sticky }),
+
+  setTheme: (theme) => set({ theme }),
+
+  toggleTheme: () => set({ theme: get().theme === 'dark' ? 'light' : 'dark' }),
 
   setNotice: (notice) => set({ notice }),
 
@@ -2090,6 +2100,28 @@ export async function openDocument(): Promise<void> {
  * that keeping it was meant to prevent. Nor an `Opened …` notice — nothing was
  * opened, it was simply still there.
  */
+/**
+ * The colour theme, from the last visit and from now on (B-UI-18).
+ *
+ * Takes whatever theme the platform kept, hands the theme to `show` now and
+ * on every change — the web build sets it on `<html>` for the stylesheet — and
+ * keeps every change. Returns the unsubscribe.
+ *
+ * Kept per browser rather than with the document: it is how this person likes
+ * to look at drawings, not a fact about any drawing, and a link opened by
+ * someone else must not bring the sender's theme with it.
+ */
+export function followTheme(show: (theme: Theme) => void): () => void {
+  const kept = platform().keptTheme();
+  if (isTheme(kept) && kept !== useEditor.getState().theme) useEditor.setState({ theme: kept });
+  show(useEditor.getState().theme);
+  return useEditor.subscribe((s, was) => {
+    if (s.theme === was.theme) return;
+    show(s.theme);
+    platform().keepTheme(s.theme);
+  });
+}
+
 export function restoreDocument(): void {
   const kept = platform().kept();
   if (kept === null) return;

@@ -1,10 +1,45 @@
+/* ---- themes (B-UI-18) ----
+   Light is the default: these are the values with no attribute set. Dark is
+   `data-theme="dark"` on <html>, set before the first paint by index.html and
+   kept in step with the store by main.tsx. Every colour in this file is one of
+   these tokens, and each theme defines all of them — a test holds the file to
+   both, and holds each `--bg` to the canvas palette's (palette.ts). */
+
 :root {
+  --bg: #ffffff;
+  --panel: #f6f8fa;
+  --border: #d1d9e0;
+  --text: #1f2328;
+  --muted: #59636e;
+  --accent: #0969da;
+  --control: #ffffff;
+  --control-hover: #f3f5f7;
+  --control-hover-border: #afb8c1;
+  --active-bg: rgba(9, 105, 218, 0.1);
+  --active-text: #0550ae;
+  --active-edge: rgba(9, 105, 218, 0.45);
+  --shadow: rgb(31 35 40 / 14%);
+  --shadow-strong: rgb(31 35 40 / 22%);
+  --scrim: rgb(31 35 40 / 28%);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
   --bg: #0f1115;
   --panel: #161a21;
   --border: #242a34;
   --text: #dfe4ec;
   --muted: #8b95a5;
   --accent: #58a6ff;
+  --control: #1d222b;
+  --control-hover: #222834;
+  --control-hover-border: #333c4a;
+  --active-bg: rgba(88, 166, 255, 0.14);
+  --active-text: #cfe4ff;
+  --active-edge: rgba(88, 166, 255, 0.5);
+  --shadow: rgb(0 0 0 / 45%);
+  --shadow-strong: rgb(0 0 0 / 55%);
+  --scrim: rgb(0 0 0 / 40%);
   color-scheme: dark;
 }
 
@@ -88,7 +123,7 @@ select {
   gap: 6px;
   flex: none;
   white-space: nowrap;
-  background: #1d222b;
+  background: var(--control);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -99,8 +134,8 @@ select {
 
 button:hover:not(:disabled),
 select:hover {
-  border-color: #333c4a;
-  background: #222834;
+  border-color: var(--control-hover-border);
+  background: var(--control-hover);
 }
 
 button:disabled {
@@ -110,8 +145,8 @@ button:disabled {
 
 button.active {
   border-color: var(--accent);
-  background: rgba(88, 166, 255, 0.14);
-  color: #cfe4ff;
+  background: var(--active-bg);
+  color: var(--active-text);
 }
 
 .hint {
@@ -148,8 +183,8 @@ button.active {
 }
 
 button.active .hint {
-  color: #cfe4ff;
-  border-color: rgba(88, 166, 255, 0.5);
+  color: var(--active-text);
+  border-color: var(--active-edge);
 }
 
 /* ---- canvas ---- */
@@ -176,7 +211,7 @@ button.active .hint {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+  box-shadow: 0 6px 20px var(--shadow);
 }
 
 /* Anchored by its bottom edge, so its height never has to be measured. */
@@ -260,7 +295,7 @@ button.active .hint {
 .ribbon kbd {
   display: inline-block;
   padding: 1px 5px;
-  background: #1d222b;
+  background: var(--control);
   border: 1px solid var(--border);
   border-bottom-width: 2px;
   border-radius: 4px;
@@ -347,7 +382,7 @@ button.active .hint {
   z-index: 3;
   display: grid;
   place-items: center;
-  background: rgb(0 0 0 / 40%);
+  background: var(--scrim);
 }
 
 .save-box {
@@ -359,7 +394,7 @@ button.active .hint {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 55%);
+  box-shadow: 0 10px 30px var(--shadow-strong);
 }
 
 .save-box h2 {

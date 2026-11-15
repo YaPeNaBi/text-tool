@@ -309,6 +309,12 @@ export function createKeymap(shell: Shell): Keyboard {
           useEditor.getState().sticky ? 'Connectors follow shapes' : 'Connectors stay put',
         );
         return;
+      // The theme (B-UI-18): the toolbar's `Dark` checkbox, which is another of
+      // the widgets a character grid cannot draw.
+      case 'F4':
+        store.toggleTheme();
+        store.setNotice(useEditor.getState().theme === 'dark' ? 'Dark theme' : 'Light theme');
+        return;
       default:
         break;
     }

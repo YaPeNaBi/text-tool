@@ -70,6 +70,15 @@ export interface PlatformAdapter {
   keep(doc: KeptDocument | null): void;
   /** What `keep` last held, or null when nothing was — or the platform cannot. */
   kept(): KeptDocument | null;
+
+  /**
+   * Hold on to the colour theme between runs (B-UI-18). A string rather than
+   * the app's own type, because this layer stores and does not interpret: the
+   * store checks what comes back, and anything it does not recognise is
+   * treated as nothing kept.
+   */
+  keepTheme(theme: string): void;
+  keptTheme(): string | null;
 }
 
 export const DEFAULT_FILENAME = 'diagram.txt';

@@ -19,10 +19,12 @@ import {
   type Metrics,
   type OriginMode,
 } from './camera.ts';
-import { COLORS } from './palette.ts';
+import type { Palette } from './palette.ts';
 
 export interface RenderInput {
   ctx: CanvasRenderingContext2D;
+  /** The theme's colours (B-UI-18). Passed in, so a switch is just a redraw. */
+  palette: Palette;
   width: number;
   height: number;
   grid: Grid;
@@ -51,10 +53,10 @@ export interface RenderInput {
 }
 
 export function render(input: RenderInput): void {
-  const { ctx, width, height, grid, camera, metrics, preview } = input;
+  const { ctx, palette, width, height, grid, camera, metrics, preview } = input;
 
   ctx.save();
-  ctx.fillStyle = COLORS.bg;
+  ctx.fillStyle = palette.bg;
   ctx.fillRect(0, 0, width, height);
 
   const topLeft = screenToCell(0, 0, camera, metrics);
@@ -80,8 +82,7 @@ export function render(input: RenderInput): void {
   ctx.restore();
 }
 
-function drawGrid(
-  { ctx, metrics, camera, width, height }: RenderInput,
+function drawGrid({ ctx, palette, metrics, camera, width, height }: RenderInput,
   minX: number,
   minY: number,
   maxX: number,
@@ -89,7 +90,7 @@ function drawGrid(
 ): void {
   if (metrics.cellW < 6 || metrics.cellH < 8) return;
 
-  ctx.strokeStyle = COLORS.grid;
+  ctx.strokeStyle = palette.grid;
   ctx.lineWidth = 1;
   ctx.beginPath();
 
@@ -107,8 +108,8 @@ function drawGrid(
 }
 
 /** The plane's corner should be unmistakable (B-UI-04). */
-function drawOriginAxes({ ctx, camera, metrics, width, height }: RenderInput): void {
-  ctx.strokeStyle = COLORS.originAxis;
+function drawOriginAxes({ ctx, palette, camera, metrics, width, height }: RenderInput): void {
+  ctx.strokeStyle = palette.originAxis;
   ctx.lineWidth = 2;
   ctx.beginPath();
 
@@ -126,8 +127,7 @@ function drawOriginAxes({ ctx, camera, metrics, width, height }: RenderInput): v
   ctx.stroke();
 }
 
-function drawCells(
-  { ctx, camera, metrics }: RenderInput,
+function drawCells({ ctx, palette, camera, metrics }: RenderInput,
   minX: number,
   minY: number,
   maxX: number,
@@ -138,7 +138,7 @@ function drawCells(
   ctx.font = metrics.font;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
-  ctx.fillStyle = COLORS.text;
+  ctx.fillStyle = palette.text;
 
   const halfW = metrics.cellW / 2;
   const halfH = metrics.cellH / 2;
@@ -156,16 +156,16 @@ function drawCells(
       if (ch === null || ch === undefined || ch === ' ') continue;
 
       const isPreviewCell = preview !== null && preview.has(key);
-      ctx.fillStyle = isPreviewCell ? COLORS.preview : COLORS.text;
+      ctx.fillStyle = isPreviewCell ? palette.preview : palette.text;
       ctx.fillText(ch, cellToScreenX(x, camera, metrics) + halfW, sy);
     }
   }
 }
 
-function drawSelection({ ctx, camera, metrics, selection }: RenderInput): void {
+function drawSelection({ ctx, palette, camera, metrics, selection }: RenderInput): void {
   if (selection === null) return;
 
-  ctx.fillStyle = COLORS.selectionFill;
+  ctx.fillStyle = palette.selectionFill;
   for (const key of selection.cells) {
     const { x, y } = unck(key);
     ctx.fillRect(
@@ -177,7 +177,7 @@ function drawSelection({ ctx, camera, metrics, selection }: RenderInput): void {
   }
 
   const b = selection.bounds;
-  ctx.strokeStyle = COLORS.selectionStroke;
+  ctx.strokeStyle = palette.selectionStroke;
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 3]);
   ctx.strokeRect(
@@ -189,11 +189,11 @@ function drawSelection({ ctx, camera, metrics, selection }: RenderInput): void {
   ctx.setLineDash([]);
 }
 
-function drawPreviewRect({ ctx, camera, metrics, previewRect }: RenderInput): void {
+function drawPreviewRect({ ctx, palette, camera, metrics, previewRect }: RenderInput): void {
   if (previewRect === null) return;
 
-  ctx.fillStyle = COLORS.previewFill;
-  ctx.strokeStyle = COLORS.preview;
+  ctx.fillStyle = palette.previewFill;
+  ctx.strokeStyle = palette.preview;
   ctx.lineWidth = 1;
 
   const sx = Math.round(cellToScreenX(previewRect.x, camera, metrics)) + 0.5;
@@ -206,7 +206,7 @@ function drawPreviewRect({ ctx, camera, metrics, previewRect }: RenderInput): vo
 }
 
 /** Grab points on a recognised closed outline (B-MAN-09). */
-function drawHandles({ ctx, camera, metrics, selection }: RenderInput): void {
+function drawHandles({ ctx, palette, camera, metrics, selection }: RenderInput): void {
   if (!isResizable(selection) || selection === null) return;
   // Below this the handles cover the glyphs they sit on and help nobody.
   if (metrics.cellW < 5 || metrics.cellH < 7) return;
@@ -219,19 +219,19 @@ function drawHandles({ ctx, camera, metrics, selection }: RenderInput): void {
     const x = Math.round(cx - size / 2);
     const y = Math.round(cy - size / 2);
 
-    ctx.fillStyle = COLORS.handleCore;
+    ctx.fillStyle = palette.handleCore;
     ctx.fillRect(x, y, size, size);
-    ctx.strokeStyle = COLORS.handle;
+    ctx.strokeStyle = palette.handle;
     ctx.lineWidth = 1;
     ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
   }
 }
 
-function drawBrush({ ctx, camera, metrics, brushRect }: RenderInput): void {
+function drawBrush({ ctx, palette, camera, metrics, brushRect }: RenderInput): void {
   if (brushRect === null) return;
 
-  ctx.fillStyle = COLORS.eraseFill;
-  ctx.strokeStyle = COLORS.erase;
+  ctx.fillStyle = palette.eraseFill;
+  ctx.strokeStyle = palette.erase;
   ctx.lineWidth = 1;
 
   const sx = Math.round(cellToScreenX(brushRect.x, camera, metrics)) + 0.5;
@@ -244,11 +244,11 @@ function drawBrush({ ctx, camera, metrics, brushRect }: RenderInput): void {
 }
 
 /** Corners already placed, so it is clear where the line will turn (B-DRAW-14). */
-function drawChain({ ctx, camera, metrics, chain }: RenderInput): void {
+function drawChain({ ctx, palette, camera, metrics, chain }: RenderInput): void {
   if (chain === null || chain.length === 0) return;
 
   const size = Math.max(4, Math.min(metrics.cellW, metrics.cellH) - 3);
-  ctx.fillStyle = COLORS.preview;
+  ctx.fillStyle = palette.preview;
 
   for (const point of chain) {
     const cx = cellToScreenX(point.x, camera, metrics) + metrics.cellW / 2;
@@ -264,11 +264,11 @@ function drawChain({ ctx, camera, metrics, chain }: RenderInput): void {
  * height for big letters, and wider there so it reads at that size (B-FONT-06).
  * The same blink either way.
  */
-function drawCaret({ ctx, camera, metrics, caret, caretOn, caretRows }: RenderInput): void {
+function drawCaret({ ctx, palette, camera, metrics, caret, caretOn, caretRows }: RenderInput): void {
   if (caret === null || !caretOn) return;
 
   const tall = caretRows > 1;
-  ctx.fillStyle = COLORS.caret;
+  ctx.fillStyle = palette.caret;
   ctx.fillRect(
     Math.round(cellToScreenX(caret.x, camera, metrics)),
     Math.round(cellToScreenY(caret.y, camera, metrics)),
@@ -291,10 +291,10 @@ function drawCaret({ ctx, camera, metrics, caret, caretOn, caretRows }: RenderIn
  * bug — it read as two cursors, and people reasonably asked which one the
  * keyboard was actually pointing at.
  */
-function drawCursor({ ctx, camera, metrics, cursor, caret }: RenderInput): void {
+function drawCursor({ ctx, palette, camera, metrics, cursor, caret }: RenderInput): void {
   if (caret !== null) return;
 
-  ctx.strokeStyle = COLORS.cursor;
+  ctx.strokeStyle = palette.cursor;
   ctx.lineWidth = 2;
   ctx.strokeRect(
     Math.round(cellToScreenX(cursor.x, camera, metrics)) + 1,
@@ -313,11 +313,11 @@ function drawCursor({ ctx, camera, metrics, cursor, caret }: RenderInput): void 
  * rather than an outline, so it reads as attention rather than as a second
  * selection.
  */
-function drawHint({ ctx, camera, metrics, hint }: RenderInput): void {
+function drawHint({ ctx, palette, camera, metrics, hint }: RenderInput): void {
   if (hint === null) return;
 
-  ctx.fillStyle = COLORS.hint;
-  ctx.strokeStyle = COLORS.hintStroke;
+  ctx.fillStyle = palette.hint;
+  ctx.strokeStyle = palette.hintStroke;
   ctx.lineWidth = 1;
 
   for (const key of hint) {
@@ -329,10 +329,10 @@ function drawHint({ ctx, camera, metrics, hint }: RenderInput): void {
   }
 }
 
-function drawHover({ ctx, camera, metrics, hover }: RenderInput): void {
+function drawHover({ ctx, palette, camera, metrics, hover }: RenderInput): void {
   if (hover === null) return;
 
-  ctx.strokeStyle = COLORS.hover;
+  ctx.strokeStyle = palette.hover;
   ctx.lineWidth = 1;
   ctx.strokeRect(
     Math.round(cellToScreenX(hover.x, camera, metrics)) + 0.5,

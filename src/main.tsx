@@ -1,11 +1,18 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.tsx';
-import { keepDocument, openLink, restoreDocument } from './app/state/store.ts';
+import { followTheme, keepDocument, openLink, restoreDocument } from './app/state/store.ts';
 import './styles.css';
 
 const root = document.getElementById('root');
 if (root === null) throw new Error('#root missing');
+
+// The theme on <html>, where the stylesheet looks for it (B-UI-18). Usually
+// already there: index.html set it from the same kept value before the first
+// paint. From here the store owns it, and every change is kept.
+followTheme((theme) => {
+  document.documentElement.dataset['theme'] = theme;
+});
 
 // Last time's drawing first; then a link in the address, which goes on top of
 // it; and only then start keeping, so the restore is not kept back as a change

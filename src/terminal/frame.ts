@@ -30,7 +30,7 @@ import { ck, unck, type CellKey, type Rect } from '../core/geom/cell.ts';
 import { CHARSETS } from '../core/charset/charsets.ts';
 import { describe, isResizable } from '../core/recognize/recognize.ts';
 import { handlesOf } from '../core/transform/resize.ts';
-import { COLORS } from '../app/canvas/palette.ts';
+import { PALETTES, type Palette, type Theme } from '../app/canvas/palette.ts';
 import { previewOf, type Drag } from '../app/canvas/gesture.ts';
 import { groupsFor, type Group, type Item } from '../app/components/ribbon-items.ts';
 import {
@@ -46,28 +46,43 @@ import { colorOf, CURSOR_BAR, CURSOR_BLOCK, type Screen } from './ansi.ts';
 import type { Viewport } from './pointer.ts';
 
 /**
- * The palette, resolved once into packed colours.
+ * A palette resolved into packed colours.
  *
  * The washes are composited against the page here rather than at each call site,
  * so a cell painted as "selected" is one number rather than a mix recomputed on
  * every frame.
  */
-const C = {
-  text: colorOf(COLORS.text),
-  dim: colorOf(COLORS.originAxis),
-  page: colorOf(COLORS.bg),
-  chrome: colorOf(COLORS.grid),
-  selection: colorOf(COLORS.selectionFill, COLORS.bg),
-  selectionEdge: colorOf(COLORS.selectionStroke),
-  preview: colorOf(COLORS.preview),
-  previewFill: colorOf(COLORS.previewFill, COLORS.bg),
-  erase: colorOf(COLORS.erase),
-  eraseFill: colorOf(COLORS.eraseFill, COLORS.bg),
-  handle: colorOf(COLORS.handle),
-  cursor: colorOf(COLORS.cursor),
-  hover: colorOf(COLORS.hover),
-  hint: colorOf(COLORS.hint, COLORS.bg),
-} as const;
+function packed(p: Palette) {
+  return {
+    text: colorOf(p.text),
+    dim: colorOf(p.originAxis),
+    page: colorOf(p.bg),
+    chrome: colorOf(p.grid),
+    selection: colorOf(p.selectionFill, p.bg),
+    selectionEdge: colorOf(p.selectionStroke),
+    preview: colorOf(p.preview),
+    previewFill: colorOf(p.previewFill, p.bg),
+    erase: colorOf(p.erase),
+    eraseFill: colorOf(p.eraseFill, p.bg),
+    handle: colorOf(p.handle),
+    cursor: colorOf(p.cursor),
+    hover: colorOf(p.hover),
+    hint: colorOf(p.hint, p.bg),
+  } as const;
+}
+
+/** Both themes, resolved once (B-UI-18). */
+const PACKED: Readonly<Record<Theme, ReturnType<typeof packed>>> = {
+  light: packed(PALETTES.light),
+  dark: packed(PALETTES.dark),
+};
+
+/**
+ * The colours this frame paints with. Set from the store's theme at the top of
+ * `paint`, which is the only way into the drawing functions below, so every one
+ * of them sees one theme for the whole frame.
+ */
+let C = PACKED.light;
 
 /**
  * How tall the key band is: a row of group names and three rows of keys under
@@ -185,6 +200,8 @@ export interface MenuHit {
 
 export function paint({ screen, layout, drag, prompt }: FrameInput): Cursor | null {
   const store = useEditor.getState();
+  C = PACKED[store.theme];
+  screen.setBackground(PALETTES[store.theme].bg);
   screen.clear();
 
   const view = layout.view;
