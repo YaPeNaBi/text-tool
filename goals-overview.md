@@ -117,9 +117,9 @@ off.
 
 | Feature | State | Notes | File |
 |---|---|---|---|
-| Set text in a font | ✅ | Seven fonts off one bitmap alphabet, from the actions menu on a run of text, previewed on the canvas as you point at them. | [text/banner.ts](src/core/text/banner.ts) |
-| Recognise them again | ✅ | A click selects the whole word and says what it says: the rendering is parsed back, not remembered. | [text/unbanner.ts](src/core/text/unbanner.ts) |
-| Type into them | ✅ | `t` then type; backspace removes a letter, Enter drops a font-height, Space leaves a font-width. | [ops/banner.ts](src/core/ops/banner.ts) |
+| Set text in a font | ✅ | Five fonts off one bitmap alphabet and Lines, drawn stroke by stroke, from the actions menu on a run of text, previewed on the canvas as you point at them. Over big text the same menu re-draws the words in another font, or `Regular` turns them back into text. | [text/banner.ts](src/core/text/banner.ts) · [ops/banner.ts](src/core/ops/banner.ts) |
+| Recognise them again | ✅ | A click selects the line and says what it says: the rendering is parsed back, not remembered. `Enter` climbs word, line, block. | [text/unbanner.ts](src/core/text/unbanner.ts) |
+| Type into them | ✅ | `t` then type, at a caret as tall as the letters that the arrows and a click move; Backspace and Delete remove a letter, Enter drops a font-height, Space leaves a font-width. | [ops/banner.ts](src/core/ops/banner.ts) |
 
 ### Files — `src/platform/`
 

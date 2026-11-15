@@ -6,7 +6,7 @@
  * same cell mean different things, that one gesture is one undo step.
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { Editor } from './editor.ts';
 
 test.describe('drawing', () => {
@@ -2697,6 +2697,70 @@ test.describe('enter widens, ctrl+enter takes everything joined up (B-SEL-19)', 
 
     await ed.press('Enter');
     expect(await ed.selection()).toContain('Text 3 chars');
+  });
+});
+
+test.describe('editing big text (B-FONT-06, B-FONT-08, B-FONT-09)', () => {
+  /** HI in small letters, selected, set in Block from the menu. */
+  async function bigHI(ed: Editor, page: Page): Promise<void> {
+    await ed.click(0, 0);
+    await ed.mark('HI');
+    await ed.click(0, 0);
+    await page.keyboard.press('Control+e');
+    await page.getByRole('button', { name: /^Font/ }).click();
+    await page.getByRole('button', { name: 'Block' }).click();
+    await expect(page.locator('.statusbar')).toContainText('Banner `HI` · Block');
+  }
+
+  test('a caret moves through the letters, and typing lands where it is', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+    await bigHI(ed, page);
+
+    await ed.press('t');
+    await ed.press('End');
+    await ed.press('ArrowLeft'); // before the I
+    await ed.press('X');
+
+    expect((await ed.text()).split('\n')).toEqual([
+      '█  █ █   █ ███',
+      '█  █  █ █   █',
+      '████   █    █',
+      '█  █  █ █   █',
+      '█  █ █   █ ███',
+    ]);
+    // The caret stands where the next letter would begin: after the X, which
+    // is the column the I now starts at — H is four wide, X five, a tracking
+    // column after each.
+    expect(await ed.caret()).toContain('11, 0');
+  });
+
+  test('Regular turns the letters back into words, and Lines draws them in strokes', async ({
+    page,
+  }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+    await bigHI(ed, page);
+
+    await page.keyboard.press('Control+e');
+    if ((await page.getByRole('button', { name: 'Regular' }).count()) === 0) {
+      await page.getByRole('button', { name: /^Font/ }).click();
+    }
+    await page.getByRole('button', { name: 'Regular' }).click();
+    expect(await ed.text()).toBe('HI');
+
+    await ed.click(0, 0);
+    await page.keyboard.press('Control+e');
+    // Lines is the sixth font, past the five a row shows at once (B-UI-17), so
+    // it is walked to rather than clicked. Open the group first if the
+    // remembered highlight left it shut.
+    const here = page.locator('.shape-menu-row').last().locator('button.here');
+    if (((await here.textContent()) ?? '').startsWith('Font')) await ed.press('Enter');
+    for (let i = 0; i < 5; i++) await ed.press('ArrowRight');
+    await expect(here).toHaveText('Lines');
+    await ed.press('Enter');
+    expect((await ed.text()).split('\n')).toEqual(['│ │ ─┬─', '│ │  │', '├─┤  │', '│ │  │', '│ │ ─┴─']);
+    await expect(page.locator('.statusbar')).toContainText('Banner `HI` · Lines');
   });
 });
 

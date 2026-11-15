@@ -24,6 +24,7 @@
  * row — the gesture that opened it, undone a step at a time.
  */
 
+import { useRef } from 'react';
 import {
   isGroup,
   menuClear,
@@ -33,6 +34,7 @@ import {
   type MenuNode,
 } from '../state/store.ts';
 import { cellToScreenX, cellToScreenY, metricsFor } from '../canvas/camera.ts';
+import type { Rect } from '../../core/geom/cell.ts';
 
 /** Clear of the shape's outline, so the menu never covers what it acts on. */
 const GAP = 8;
@@ -62,7 +64,11 @@ export function ShapeMenu(): React.JSX.Element | null {
   const pickMenu = useEditor((s) => s.pickMenu);
   const pointMenu = useEditor((s) => s.pointMenu);
   const leaveMenu = useEditor((s) => s.leaveMenu);
+  const aim = useEditor((s) => s.menuAim);
+  // Where the menu was last put by the keyboard, held while the pointer has it.
+  const held = useRef<Rect | null>(null);
 
+  if (!open) held.current = null;
   if (!open || selection === null) return null;
 
   const items = menuFor(useEditor.getState());
@@ -70,7 +76,14 @@ export function ShapeMenu(): React.JSX.Element | null {
 
   const rows = rowsFor(items, path);
   const m = metricsFor(camera.zoom);
-  const { x, y, h } = menuClear(useEditor.getState());
+  // Placed from the selection and what is previewed, re-placed only while the
+  // keyboard is walking it. Under the pointer it stays where it was: an item
+  // whose preview grows down the page would otherwise push the menu out from
+  // under the pointer that reached it (B-UI-16b).
+  const live = menuClear(useEditor.getState());
+  const placed = aim === 'pointer' && held.current !== null ? held.current : live;
+  held.current = placed;
+  const { x, y, h } = placed;
   const top = cellToScreenY(y, camera, m);
   const above = top >= HEADROOM;
 

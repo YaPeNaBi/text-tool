@@ -158,7 +158,7 @@ function press(self: Pointer, click: Click, view: Viewport, menu: readonly MenuH
       self.drag = { kind: 'freehand', cur: cell, samples: [cell] };
       return;
     case 'text':
-      store.setCaret(cell);
+      store.placeCaret(cell);
       return;
     default:
       break;

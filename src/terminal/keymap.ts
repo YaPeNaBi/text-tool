@@ -360,21 +360,33 @@ export function createKeymap(shell: Shell): Keyboard {
     //
     // Below `Ctrl` and the menu, so undo, save and the font list still work.
     if (store.typingBanner()) {
-      if (key === 'Backspace') {
-        store.editBanner((text) => [...text].slice(0, -1).join(''));
-        return;
-      }
-      if (key === 'Enter') {
-        store.editBanner((text) => `${text}\n`);
-        return;
-      }
-      if (key === 'Escape') {
-        store.setTool('select');
-        return;
-      }
-      if ([...key].length === 1) {
-        store.editBanner((text) => text + key);
-        return;
+      switch (key) {
+        case 'Backspace':
+        case 'Delete':
+        case 'Enter':
+          store.bannerKey(key);
+          return;
+        case 'ArrowLeft':
+        case 'ArrowRight':
+        case 'ArrowUp':
+        case 'ArrowDown':
+          store.moveBannerCaret(
+            key === 'ArrowLeft' ? -1 : key === 'ArrowRight' ? 1 : 0,
+            key === 'ArrowUp' ? -1 : key === 'ArrowDown' ? 1 : 0,
+          );
+          return;
+        case 'Home':
+        case 'End':
+          store.bannerCaretTo(key === 'Home' ? 'home' : 'end');
+          return;
+        case 'Escape':
+          store.setTool('select');
+          return;
+        default:
+          if ([...key].length === 1) {
+            store.bannerKey(key);
+            return;
+          }
       }
     }
     // ---- a live caret owns the keyboard (B-DRAW-11) ----
@@ -510,7 +522,9 @@ export function createKeymap(shell: Shell): Keyboard {
       const byDigit = /^[0-9]$/.test(key) ? TOOLS.find((t) => t.key === key) : undefined;
       if (byDigit !== undefined) {
         store.setTool(byDigit.id);
-        if (byDigit.id === 'text') useEditor.getState().setCaret(store.cursor);
+        if (byDigit.id === 'text' && !useEditor.getState().typingBanner()) {
+          useEditor.getState().setCaret(store.cursor);
+        }
         return;
       }
 
@@ -518,8 +532,11 @@ export function createKeymap(shell: Shell): Keyboard {
       if (mode !== undefined) {
         store.setTool(mode);
         // The writing mode is entered *at the keyboard*, not at whatever was
-        // clicked last: `hjkl` to the cell, `t`, and type.
-        if (mode === 'text') useEditor.getState().setCaret(store.cursor);
+        // clicked last: `hjkl` to the cell, `t`, and type — unless big letters
+        // are selected and placed their own caret on the way in (B-FONT-06).
+        if (mode === 'text' && !useEditor.getState().typingBanner()) {
+          useEditor.getState().setCaret(store.cursor);
+        }
         return;
       }
 

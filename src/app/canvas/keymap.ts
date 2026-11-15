@@ -370,32 +370,45 @@ export function installKeyboard(cancelGesture: () => void): () => void {
 
     // ---- a selected banner owns the keyboard, in the writing mode (B-FONT-04) ----
     //
-    // Above the caret branch because there is no caret to own it: a banner has
-    // no insertion point inside it, only an end, so every key here means the same
-    // thing as it would in a text field and none of them mean what they mean on
-    // the grid. Without this, Backspace would delete the whole selection and
-    // Enter would widen it.
+    // Above the caret branch because the caret here is not a cell on the grid
+    // but a place in the recovered text (B-FONT-06): every key means what it
+    // would in a text field, and none of them mean what they mean on the grid.
+    // Without this, Backspace would delete the whole selection and Enter would
+    // widen it.
     //
     // Below `Ctrl` and the menu, so undo, save and the font list still work.
     if (store.typingBanner()) {
-      if (ev.key === 'Backspace') {
-        ev.preventDefault();
-        store.editBanner((text) => [...text].slice(0, -1).join(''));
-        return;
-      }
-      if (ev.key === 'Enter') {
-        ev.preventDefault();
-        store.editBanner((text) => `${text}\n`);
-        return;
-      }
-      if (ev.key === 'Escape') {
-        store.setTool('select');
-        return;
-      }
-      if (ev.key.length === 1) {
-        ev.preventDefault();
-        store.editBanner((text) => text + ev.key);
-        return;
+      switch (ev.key) {
+        case 'Backspace':
+        case 'Delete':
+        case 'Enter':
+          ev.preventDefault();
+          store.bannerKey(ev.key);
+          return;
+        case 'ArrowLeft':
+        case 'ArrowRight':
+        case 'ArrowUp':
+        case 'ArrowDown':
+          ev.preventDefault();
+          store.moveBannerCaret(
+            ev.key === 'ArrowLeft' ? -1 : ev.key === 'ArrowRight' ? 1 : 0,
+            ev.key === 'ArrowUp' ? -1 : ev.key === 'ArrowDown' ? 1 : 0,
+          );
+          return;
+        case 'Home':
+        case 'End':
+          ev.preventDefault();
+          store.bannerCaretTo(ev.key === 'Home' ? 'home' : 'end');
+          return;
+        case 'Escape':
+          store.setTool('select');
+          return;
+        default:
+          if (ev.key.length === 1) {
+            ev.preventDefault();
+            store.bannerKey(ev.key);
+            return;
+          }
       }
     }
     // ---- a live caret owns the keyboard (B-DRAW-11) ----
@@ -586,7 +599,11 @@ export function installKeyboard(cancelGesture: () => void): () => void {
         // clicked last. `hjkl` to the cell, `t`, and type — with no caret the
         // text tool would be waiting for a click, which is the one thing the
         // hand on the home row is not about to do.
-        if (mode === 'text') useEditor.getState().setCaret(store.cursor);
+        // …unless the selection is big letters, which placed their own caret
+        // on the way in (B-FONT-06).
+        if (mode === 'text' && !useEditor.getState().typingBanner()) {
+          useEditor.getState().setCaret(store.cursor);
+        }
         return;
       }
 

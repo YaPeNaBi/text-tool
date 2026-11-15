@@ -78,8 +78,18 @@ import { labelBoundsOf, textBlockAt } from '../../core/derive/label.ts';
 import { paragraphAt } from '../../core/derive/paragraph.ts';
 import type { Plan } from '../../core/ops/plan.ts';
 import { convertCharset } from '../../core/transform/convert.ts';
-import { planBanner, planBannerEdit } from '../../core/ops/banner.ts';
-import { BANNER_STYLES, styleFor, type BannerStyle } from '../../core/text/banner.ts';
+import { planBanner, planBannerEdit, planRefont, planUnbanner } from '../../core/ops/banner.ts';
+import {
+  BANNER_STYLES,
+  caretAt,
+  caretCell,
+  caretLineEdge,
+  shiftCaret,
+  styleFor,
+  typedAt,
+  type BannerStyle,
+} from '../../core/text/banner.ts';
+import { readBanner, readBannerBlock, readBannerWord } from '../../core/text/unbanner.ts';
 import { decodeDocument, encodeDocument } from '../../core/io/link.ts';
 import { toText } from '../../core/io/text.ts';
 import { DEFAULT_FILENAME, platform } from '../../platform/index.ts';
@@ -212,10 +222,16 @@ export interface MenuWindow {
  * Only the cells being **written** count. A diff also carries the erases that
  * clear the old text, and those are cells about to become blank — keeping the
  * menu clear of blankness would push it away for no reason.
+ *
+ * And only while the **keyboard** is walking the menu. Under the pointer the
+ * preview is drawn but the menu stays where it is: a font's preview grows five
+ * rows down from a one-row selection, straight through where the menu sits, and
+ * a menu that moved out from under the pointer to keep clear of it could not be
+ * clicked — the pointer would land on the canvas and clear the selection.
  */
 export function menuClear(state: EditorState): Rect {
   const base = state.selection?.bounds ?? { x: state.cursor.x, y: state.cursor.y, w: 1, h: 1 };
-  const preview = state.menuOpen ? state.menuPreview : null;
+  const preview = state.menuOpen && state.menuAim === 'key' ? state.menuPreview : null;
   if (preview === null) return base;
 
   const written: CellKey[] = [];
@@ -298,18 +314,37 @@ export function menuFor(state: EditorState): readonly MenuNode[] {
 
   // Text has one thing worth asking about, and it is the one thing a list of
   // words cannot convey — so every item here carries a `preview` (B-UI-16a).
-  if (selection.kind === 'text') {
+  // Big text is offered the same list, re-rendered from what it says, with the
+  // way back to ordinary characters at the front (B-FONT-08).
+  if (selection.kind === 'text' || selection.kind === 'banner') {
+    const big = selection.kind === 'banner';
+    const fonts: MenuNode[] = BANNER_STYLES.map((style) => ({
+      label: style.label,
+      title: style.title,
+      run: (s: EditorState) => { s.setFont(style.id); },
+      preview: (s: EditorState) => {
+        if (s.selection === null) return null;
+        const plan =
+          s.selection.kind === 'banner'
+            ? planRefont(s.grid, s.selection, style)
+            : planBanner(s.grid, s.selection, style);
+        return plan.diff;
+      },
+    }));
+    if (big) {
+      fonts.unshift({
+        label: 'Regular',
+        title: 'Back to ordinary characters',
+        run: (s: EditorState) => { s.unsetFont(); },
+        preview: (s: EditorState) =>
+          s.selection === null ? null : planUnbanner(s.grid, s.selection).diff,
+      });
+    }
     return [
       {
         label: 'Font',
-        title: 'Set this text in huge letters',
-        items: BANNER_STYLES.map((style) => ({
-          label: style.label,
-          title: style.title,
-          run: (s: EditorState) => { s.setFont(style.id); },
-          preview: (s: EditorState) =>
-            s.selection === null ? null : planBanner(s.grid, s.selection, style).diff,
-        })),
+        title: big ? 'Set these letters in another font, or back to text' : 'Set this text in huge letters',
+        items: fonts,
       },
     ];
   }
@@ -371,6 +406,76 @@ const END_KINDS: ReadonlyArray<{ id: LineEnd; label: string; title: string }> = 
 
 /** Bumped whenever a typing run should start a fresh undo entry. */
 let typingRun = 0;
+
+/**
+ * What the keys are editing while a banner is selected (B-FONT-06): the whole
+ * block of big text the selection is part of, its style, the text being typed
+ * and where the caret stands in it.
+ *
+ * The block rather than the selection, because a selection may be one word or
+ * one line of it (B-FONT-07) and an edit re-renders the lot — letters shift
+ * along the line and lines move down as text goes in. The remembered edit wins
+ * while it is about this block, since it carries what the picture cannot: a
+ * trailing space, a pending newline, and the caret (B-FONT-05).
+ */
+interface BannerContext {
+  origin: Cell;
+  style: BannerStyle;
+  text: string;
+  caret: number;
+  cells: ReadonlySet<CellKey>;
+}
+
+function bannerContext(state: EditorState): BannerContext | null {
+  const { grid, selection, bannerEdit } = state;
+  if (selection === null || selection.kind !== 'banner' || selection.banner === undefined) return null;
+  const style = styleFor(selection.banner.styleId);
+  if (style === undefined) return null;
+
+  const seed = [...selection.cells].map(unck)[0];
+  const block = seed === undefined ? null : readBannerBlock(grid, seed);
+  const origin = block?.origin ?? selection.banner.origin;
+  const cells = block?.cells ?? selection.cells;
+  const at = ck(origin.x, origin.y);
+  if (bannerEdit !== null && bannerEdit.at === at) {
+    return { origin, style, text: bannerEdit.text, caret: bannerEdit.caret, cells };
+  }
+  const text = block?.text ?? selection.banner.text;
+  return { origin, style, text, caret: [...text].length, cells };
+}
+
+/** A reading of big text as a selection. */
+function bannerCandidate(found: {
+  style: BannerStyle;
+  text: string;
+  origin: Cell;
+  cells: ReadonlySet<CellKey>;
+  bounds: Rect;
+}): Candidate {
+  return {
+    kind: 'banner',
+    cells: new Set(found.cells),
+    bounds: found.bounds,
+    banner: { styleId: found.style.id, text: found.text, origin: found.origin },
+  };
+}
+
+/**
+ * Big text's own ladder (B-FONT-07): the word under the keyboard, the line it
+ * is on, and the block of lines stacked flush with it. Read fresh each press,
+ * as the shape ladder is, and deduplicated where the rungs coincide — a word
+ * alone on its line is one rung, not three.
+ */
+function bannerLadder(grid: Grid, at: Cell): Candidate[] {
+  const out: Candidate[] = [];
+  for (const read of [readBannerWord, readBanner, readBannerBlock]) {
+    const found = read(grid, at);
+    if (found === null) continue;
+    const c = bannerCandidate(found);
+    if (!out.some((o) => sameCells(o, c))) out.push(c);
+  }
+  return out;
+}
 
 interface ApplyOptions {
   /** Moves keep their selection; everything else clears it (B-SEL-07). */
@@ -452,6 +557,12 @@ export interface EditorState {
   /** What the pointed-at item would draw, shown before it is chosen (B-UI-16a). */
   menuPreview: CellDiff | null;
   /**
+   * Who last moved the highlight. The menu keeps clear of what it previews only
+   * while the keyboard walks it: under the pointer it stays put, since a menu
+   * that moved out from under the pointer could not be clicked (B-UI-16b).
+   */
+  menuAim: 'key' | 'pointer';
+  /**
    * The text being typed into a banner, while one is being typed into.
    *
    * Session state, and it has to be: a **trailing space is unrenderable**. The
@@ -467,7 +578,7 @@ export interface EditorState {
    * Keyed by the banner it belongs to, so clicking a different one starts from
    * what that one actually says rather than from what was last typed.
    */
-  bannerEdit: { at: CellKey; text: string } | null;
+  bannerEdit: { at: CellKey; text: string; caret: number } | null;
   canUndo: boolean;
   canRedo: boolean;
 
@@ -592,8 +703,31 @@ export interface EditorState {
   typingBanner: () => boolean;
   /** The style a selected banner is drawn in, or null. */
   bannerStyle: () => BannerStyle | null;
-  /** Re-render the selected banner with its text changed. */
-  editBanner: (edit: (text: string) => string) => void;
+  /**
+   * Re-render the selected banner with its text changed and the caret moved
+   * (B-FONT-06). The edit sees the text being typed and where the caret stands;
+   * null means nothing happened. Only the caret moving draws nothing.
+   */
+  editBanner: (
+    edit: (text: string, caret: number) => { text: string; caret: number } | null,
+  ) => void;
+  /** A text-field key into the banner: a character, `Enter`, `Backspace`, `Delete`. */
+  bannerKey: (key: string) => void;
+  /**
+   * Entering the writing mode on a banner: the block it belongs to becomes the
+   * thing the keys edit, and the caret lands at the letter under the keyboard.
+   */
+  beginBannerEdit: () => void;
+  /** The caret through the big letters: one character sideways, one line up or down. */
+  moveBannerCaret: (dx: number, dy: number) => void;
+  /** The caret to the start or the end of its own line. */
+  bannerCaretTo: (where: 'home' | 'end') => void;
+  /** A click under the text tool: into the banner being typed into, else a plain caret. */
+  placeCaret: (cell: Cell) => void;
+  /** How many rows the caret is drawn: a banner's height while typing into one, else one. */
+  caretRows: () => number;
+  /** `Regular`: the selected banner back to ordinary characters (B-FONT-08). */
+  unsetFont: () => void;
   typeAt: (ch: string) => void;
   newline: () => void;
   backspace: () => void;
@@ -635,6 +769,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   menuPath: [0],
   menuHint: null,
   menuPreview: null,
+  menuAim: 'key',
   bannerEdit: null,
   canUndo: false,
   canRedo: false,
@@ -708,6 +843,10 @@ export const useEditor = create<EditorState>((set, get) => ({
       draft: null,
       menuOpen: false,
     });
+
+    // Into the writing mode with big letters selected: the block becomes the
+    // thing the keys edit, and the caret lands under the keyboard (B-FONT-06).
+    if (tool === 'text' && get().selection?.kind === 'banner') get().beginBannerEdit();
   },
 
   setCharset: (id) => {
@@ -1195,6 +1334,18 @@ export const useEditor = create<EditorState>((set, get) => ({
     // answering "a line" to a press on a box would be obtuse (B-REC-10).
     const rungs: Candidate[] = [];
     const smallest = list[0];
+
+    // Big text climbs its own ladder: word, line, block (B-FONT-07). Read
+    // back off the selection like the shape rungs, so a click's line steps up
+    // to the block and a fresh press starts at the word.
+    if (smallest?.kind === 'banner') {
+      const steps = bannerLadder(grid, cursor);
+      const at = steps.findIndex((c) => sameCells(c, selection));
+      const next = (at === -1 ? steps[0] : steps[(at + 1) % steps.length]) ?? null;
+      set({ selection: next, drill: null, menuOpen: false, objectMode: false });
+      return;
+    }
+
     if (smallest !== undefined) rungs.push(smallest);
 
     // The widest reading that is still a **shape**. Widest rather than the
@@ -1324,7 +1475,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     // line has nothing in common with the menu over a box, so a path remembered
     // in one is meaningless in the other.
     const path = reaches(items, state.menuPath) ? state.menuPath : [0];
-    set({ menuOpen: true, menuPath: path, ...aimedAt(state, path) });
+    set({ menuOpen: true, menuPath: path, menuAim: 'key', ...aimedAt(state, path) });
   },
 
   closeMenu: () => set({ menuOpen: false, menuHint: null, menuPreview: null }),
@@ -1338,7 +1489,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const at = path[path.length - 1] ?? 0;
     const step = (((at + delta) % level.length) + level.length) % level.length;
     const next = [...path.slice(0, -1), step];
-    set({ menuPath: next, ...aimedAt(get(), next) });
+    set({ menuPath: next, menuAim: 'key', ...aimedAt(get(), next) });
   },
 
   activateMenu: () => {
@@ -1349,7 +1500,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     // is what makes the menu one thing to learn rather than two.
     if (isGroup(node)) {
       const next = [...path, 0];
-      set({ menuPath: next, ...aimedAt(get(), next) });
+      set({ menuPath: next, menuAim: 'key', ...aimedAt(get(), next) });
       return;
     }
 
@@ -1367,7 +1518,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       return;
     }
     const next = path.slice(0, -1);
-    set({ menuPath: next, ...aimedAt(get(), next) });
+    set({ menuPath: next, menuAim: 'key', ...aimedAt(get(), next) });
   },
 
   // The rows are stacked, deepest at the bottom, so down and up walk them:
@@ -1398,12 +1549,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     const current = get().menuPath;
     const open = current.length > path.length && path.every((at, i) => current[i] === at);
     const next = open ? [...path] : [...path, 0];
-    set({ menuPath: next, ...aimedAt(get(), next) });
+    set({ menuPath: next, menuAim: 'pointer', ...aimedAt(get(), next) });
   },
 
   pointMenu: (path) => {
     if (path.length === 0) {
-      set({ menuHint: null, menuPreview: null });
+      set({ menuHint: null, menuPreview: null, menuAim: 'pointer' });
       return;
     }
     // Only the deepest row follows the pointer. Hovering a row above it lights
@@ -1413,8 +1564,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     const current = get().menuPath;
     const deepest =
       path.length === current.length && path.slice(0, -1).every((at, i) => current[i] === at);
-    if (deepest) set({ menuPath: path, ...aimedAt(get(), path) });
-    else set({ ...aimedAt(get(), path) });
+    if (deepest) set({ menuPath: path, menuAim: 'pointer', ...aimedAt(get(), path) });
+    else set({ menuAim: 'pointer', ...aimedAt(get(), path) });
   },
 
   restyleSelection: (charsetId) => {
@@ -1441,7 +1592,18 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (selection === null) return;
     const style = styleFor(id);
     if (style === undefined) return;
-    get().runPlan(planBanner(grid, selection, style), { keepSelection: true });
+    // Big text is re-rendered from what it says, not from its picture (B-FONT-08).
+    const plan =
+      selection.kind === 'banner'
+        ? planRefont(grid, selection, style)
+        : planBanner(grid, selection, style);
+    get().runPlan(plan, { keepSelection: true });
+  },
+
+  unsetFont: () => {
+    const { grid, selection } = get();
+    if (selection === null || selection.kind !== 'banner') return;
+    get().runPlan(planUnbanner(grid, selection), { keepSelection: true });
   },
 
   setLineEnd: (which, end) => {
@@ -1561,49 +1723,115 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   /**
-   * A keystroke into a selected banner: re-render it saying something else.
+   * A keystroke into a selected banner: re-render it saying something else,
+   * with the caret where the edit left it (B-FONT-06).
    *
-   * Not a branch inside `typeAt`, because nothing about this is typing at a
-   * caret — there is no caret, the insertion point is the end of the word, and
-   * the whole picture is redrawn (B-FONT-04). Sharing the name would have meant
+   * Not a branch inside `typeAt`, because nothing about this is typing on the
+   * grid: the caret is an index into the recovered text, and the whole picture
+   * is redrawn from that text (B-FONT-04). Sharing the name would have meant
    * sharing the insert-mode and grow-the-box logic that has no meaning here.
+   *
+   * The caret cell is the keyboard's one position (B-UI-10), so it is kept in
+   * `caret` and `cursor` like any other — the status bar reads it from there,
+   * and so does the renderer, which draws it as tall as the letters.
    */
   editBanner: (edit) => {
-    const { selection } = get();
-    const style = get().bannerStyle();
-    if (selection === null || style === null) return;
+    const ctx = bannerContext(get());
+    if (ctx === null) return;
 
-    // What is being typed, not what is drawn: the two differ by any trailing
-    // space, and the difference is the whole point of `bannerEdit`.
-    const origin = ck(selection.bounds.x, selection.bounds.y);
-    const remembered = get().bannerEdit;
-    const was =
-      remembered !== null && remembered.at === origin
-        ? remembered.text
-        : selection.banner?.text ?? '';
+    const next = edit(ctx.text, ctx.caret);
+    if (next === null) return;
+    const caret = Math.max(0, Math.min([...next.text].length, next.caret));
+    const at = ck(ctx.origin.x, ctx.origin.y);
 
-    const text = edit(was);
-    if (text === was) return;
-
-    get().runPlan(
-      planBannerEdit({ x: selection.bounds.x, y: selection.bounds.y }, style, was, text),
-      { keepSelection: true },
-    );
-
-    // The plan already handed back a banner selection — it drew the thing, so it
-    // knows the style and the text exactly — and that is left standing.
-    //
-    // It was re-read from the grid here at first, and that was a bug worth
-    // remembering: `recognize` was asked about the bounds' top-left corner, which
-    // is frequently **blank**. A `G` in this alphabet starts with a gap, so the
-    // re-read found nothing, cleared the selection, and the next keystroke typed
-    // small letters over the big ones. Re-deriving is the right instinct and the
-    // wrong move here: the authority on what was just drawn is whatever drew it.
-    if (get().selection === null) {
-      set({ drill: null, bannerEdit: null });
+    // Only the caret moved: remember where, draw nothing.
+    if (next.text === ctx.text) {
+      const cell = caretCell(ctx.origin, ctx.text, caret, ctx.style);
+      set({ bannerEdit: { at, text: ctx.text, caret }, caret: cell, cursor: cell, caretHome: cell.x });
       return;
     }
-    set({ drill: null, bannerEdit: { at: origin, text } });
+
+    get().runPlan(planBannerEdit(ctx.origin, ctx.style, ctx.text, next.text), { keepSelection: true });
+
+    // The plan already handed back a banner selection — it drew the thing, so it
+    // knows the style, the text and the origin exactly — and that is left
+    // standing. It was re-read from the grid here at first, and that was a bug
+    // worth remembering: `recognize` was asked about the bounds' top-left
+    // corner, which is frequently **blank**. A `G` in this alphabet starts with
+    // a gap, so the re-read found nothing, cleared the selection, and the next
+    // keystroke typed small letters over the big ones. The authority on what was
+    // just drawn is whatever drew it.
+    if (get().selection === null) {
+      // Edited down to nothing. The caret stays where the letters were, as a
+      // plain one, so the next keystroke writes small text there.
+      set({ drill: null, bannerEdit: null, caret: ctx.origin, cursor: ctx.origin, caretHome: ctx.origin.x });
+      return;
+    }
+    const cell = caretCell(ctx.origin, next.text, caret, ctx.style);
+    set({ drill: null, bannerEdit: { at, text: next.text, caret }, caret: cell, cursor: cell, caretHome: cell.x });
+  },
+
+  bannerKey: (key) => {
+    get().editBanner((text, caret) => typedAt(text, caret, key));
+  },
+
+  beginBannerEdit: () => {
+    const ctx = bannerContext(get());
+    if (ctx === null) return;
+    const { cursor, bannerEdit, selection } = get();
+    const at = ck(ctx.origin.x, ctx.origin.y);
+    const bounds = boundsOf(ctx.cells) ?? selection?.bounds ?? { x: ctx.origin.x, y: ctx.origin.y, w: 1, h: 1 };
+
+    // Where the keyboard stands says where the caret goes, as `t` on small text
+    // opens it at the character under the cursor (B-SEL-11). Off the letters, a
+    // caret this block already had is kept; otherwise it goes to the end.
+    const remembered = bannerEdit !== null && bannerEdit.at === at;
+    const caret = rectContains(bounds, cursor.x, cursor.y)
+      ? caretAt(ctx.origin, ctx.text, ctx.style, cursor)
+      : remembered
+        ? ctx.caret
+        : [...ctx.text].length;
+    const cell = caretCell(ctx.origin, ctx.text, caret, ctx.style);
+
+    typingRun++;
+    set({
+      // The block is what the keys edit, so the block is what is selected.
+      selection: bannerCandidate({ style: ctx.style, text: ctx.text, origin: ctx.origin, cells: ctx.cells, bounds }),
+      drill: null,
+      bannerEdit: { at, text: ctx.text, caret },
+      caret: cell,
+      cursor: cell,
+      caretHome: cell.x,
+    });
+  },
+
+  moveBannerCaret: (dx, dy) => {
+    get().editBanner((text, caret) => ({ text, caret: shiftCaret(text, caret, dx, dy) }));
+  },
+
+  bannerCaretTo: (where) => {
+    get().editBanner((text, caret) => ({ text, caret: caretLineEdge(text, caret, where) }));
+  },
+
+  placeCaret: (cell) => {
+    if (get().typingBanner()) {
+      const ctx = bannerContext(get());
+      const bounds = ctx === null ? null : boundsOf(ctx.cells);
+      if (ctx !== null && bounds !== null && rectContains(bounds, cell.x, cell.y)) {
+        get().editBanner((text) => ({ text, caret: caretAt(ctx.origin, text, ctx.style, cell) }));
+        return;
+      }
+      // Clicked away from the big letters: they are no longer what the keys
+      // write into, or a click on empty space would still type into them.
+      set({ selection: null, drill: null, bannerEdit: null });
+    }
+    get().setCaret(cell);
+  },
+
+  caretRows: () => {
+    const s = get();
+    if (!s.typingBanner()) return 1;
+    return s.bannerStyle()?.height ?? 1;
   },
   typeAt: (ch) => {
     const { grid, caret, insertMode, sticky, selection } = get();

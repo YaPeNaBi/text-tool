@@ -56,6 +56,7 @@ export function CanvasView(): React.JSX.Element {
 
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [caretOn, setCaretOn] = useState(true);
+  const caretRows = useEditor((s) => s.caretRows());
 
   // The ref is the source of truth for handlers; the state copy exists so the
   // canvas redraws. Reading state inside a handler would go stale whenever two
@@ -117,11 +118,13 @@ export function CanvasView(): React.JSX.Element {
   // clears the selection (B-SEL-07) and leaves a caret, so the square becomes a
   // bar on the same keystroke that dissolves the area — which is one rule
   // producing both halves rather than a special case for each.
+  // Big letters being typed into are the exception: their caret is a place in
+  // the recovered text, drawn where the next letter would begin, which may be a
+  // column past the selection's edge (B-FONT-06).
   const keyPoint = caret ?? keyCursor;
   const writing =
-    selection === null
-      ? caret !== null
-      : rectContains(selection.bounds, keyPoint.x, keyPoint.y);
+    caretRows > 1 ||
+    (selection === null ? caret !== null : rectContains(selection.bounds, keyPoint.x, keyPoint.y));
 
   // Restarting on every move keeps it solid while you type.
   useEffect(() => {
@@ -197,10 +200,12 @@ export function CanvasView(): React.JSX.Element {
       hint: menuHint,
       caret: writing ? keyPoint : null,
       caretOn,
+      caretRows,
       chain,
       cursor: keyPoint,
     });
   }, [
+    caretRows,
     size,
     grid,
     revision,
@@ -279,7 +284,7 @@ export function CanvasView(): React.JSX.Element {
         setDrag({ kind: 'freehand', cur: cell, samples: [cell] });
         return;
       case 'text':
-        store.setCaret(cell);
+        store.placeCaret(cell);
         return;
       default:
         break;

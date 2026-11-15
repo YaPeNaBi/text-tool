@@ -42,6 +42,8 @@ export interface RenderInput {
   caret: Cell | null;
   /** Blink phase; the caret is only painted when true. */
   caretOn: boolean;
+  /** How many rows tall: one, or a banner's height while typing into one (B-FONT-06). */
+  caretRows: number;
   /** Corners placed so far on a line being drawn click by click. */
   chain: readonly Cell[] | null;
   /** Where the keyboard is. Always somewhere, in every tool. */
@@ -255,16 +257,23 @@ function drawChain({ ctx, camera, metrics, chain }: RenderInput): void {
   }
 }
 
-/** A bar on the leading edge of the cell, so it reads as "type here" (B-DRAW-11). */
-function drawCaret({ ctx, camera, metrics, caret, caretOn }: RenderInput): void {
+/**
+ * A bar on the leading edge of the cell, so it reads as "type here" (B-DRAW-11).
+ *
+ * As tall as what it is typing into: one row for small text, the whole font
+ * height for big letters, and wider there so it reads at that size (B-FONT-06).
+ * The same blink either way.
+ */
+function drawCaret({ ctx, camera, metrics, caret, caretOn, caretRows }: RenderInput): void {
   if (caret === null || !caretOn) return;
 
+  const tall = caretRows > 1;
   ctx.fillStyle = COLORS.caret;
   ctx.fillRect(
     Math.round(cellToScreenX(caret.x, camera, metrics)),
     Math.round(cellToScreenY(caret.y, camera, metrics)),
-    Math.max(2, Math.round(metrics.cellW * 0.12)),
-    metrics.cellH,
+    Math.max(2, Math.round(metrics.cellW * (tall ? 0.3 : 0.12))),
+    metrics.cellH * Math.max(1, caretRows),
   );
 }
 

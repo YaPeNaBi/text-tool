@@ -9,7 +9,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { BANNER_STYLES, renderBanner, styleFor } from '../src/core/text/banner.ts';
+import { BANNER_STYLES, renderBanner, styleFor, typedAt } from '../src/core/text/banner.ts';
 import { planBanner } from '../src/core/ops/banner.ts';
 import { createGrid, applyDiff, type Grid } from '../src/core/grid/grid.ts';
 import { readBanner } from '../src/core/text/unbanner.ts';
@@ -54,17 +54,17 @@ describe('the banner alphabet', () => {
   });
 
   it('folds lower case to upper, banner alphabets having one case', () => {
-    const style = styleFor('hash');
+    const style = styleFor('block');
     expect(style).toBeDefined();
     if (style === undefined) return;
     expect(renderBanner('abc', style)).toEqual(renderBanner('ABC', style));
   });
 
   it('gives a character it has no glyph for a visible box, not nothing', () => {
-    const style = styleFor('hash');
+    const style = styleFor('block');
     if (style === undefined) return;
     // Silently dropping it would read as the editor losing a keystroke.
-    expect(renderBanner('§', style).join('\n')).toContain('#');
+    expect(renderBanner('§', style).join('\n')).toContain('█');
   });
 
   it('is not all the same height: Half is shorter and Shadow is taller', () => {
@@ -96,7 +96,7 @@ describe('setting text in a font', () => {
 
   it('replaces the text with its picture, at the same corner', () => {
     const { grid, selection } = textAt('HI');
-    const style = styleFor('hash');
+    const style = styleFor('block');
     if (style === undefined) return;
 
     const plan = planBanner(grid, selection, style);
@@ -104,7 +104,7 @@ describe('setting text in a font', () => {
 
     const out = toText(grid);
     expect(out.split('\n').length).toBe(5);
-    expect(out).toContain('#');
+    expect(out).toContain('█');
     // The old characters are gone, not left as debris inside the new letters.
     expect(out).not.toContain('HI');
   });
@@ -112,7 +112,7 @@ describe('setting text in a font', () => {
   it('takes the old cells out even where the new letters miss them', () => {
     // `I` is narrow; the cells of a wider original must not survive beside it.
     const { grid, selection } = textAt('I');
-    const style = styleFor('hash');
+    const style = styleFor('block');
     if (style === undefined) return;
     const plan = planBanner(grid, selection, style);
     for (const key of selection.cells) expect(plan.diff.has(key)).toBe(true);
@@ -122,7 +122,7 @@ describe('setting text in a font', () => {
     const grid = createGrid();
     grid.set(ck(0, 0), ' ');
     const cells = new Set([ck(0, 0)]);
-    const style = styleFor('hash');
+    const style = styleFor('block');
     if (style === undefined) return;
 
     const plan = planBanner(grid, { kind: 'text', cells, bounds: { x: 0, y: 0, w: 1, h: 1 } }, style);
@@ -291,7 +291,7 @@ describe('reading a banner back off the grid', () => {
   it('finds the origin, which is not always a filled cell', () => {
     // `G` begins with a blank column in this alphabet, and getting this wrong is
     // what made an early version lose the selection on the first keystroke.
-    const grid = drawn('GO', 'hash');
+    const grid = drawn('GO', 'block');
     expect(grid.has(ck(0, 0))).toBe(false);
     expect(readBanner(grid, { x: 1, y: 0 })?.origin).toEqual({ x: 0, y: 0 });
   });
@@ -340,7 +340,7 @@ describe('reading a banner back off the grid', () => {
     reset();
     useEditor.getState().loadText('GO', 'x.txt');
     useEditor.getState().selectAt({ x: 0, y: 0 });
-    useEditor.getState().setFont('hash');
+    useEditor.getState().setFont('block');
     expect(useEditor.getState().selection?.kind).toBe('banner');
   });
 
@@ -362,9 +362,12 @@ describe('typing into a banner', () => {
     useEditor.getState().selectAt({ x: 0, y: 0 });
     useEditor.getState().setFont(styleId);
     useEditor.getState().setTool('text');
+    // The caret lands at the letter under the keyboard (B-FONT-06), which is
+    // the first one here; these cases are about what typing at the end does.
+    useEditor.getState().bannerCaretTo('end');
   };
   const type = (s: string): void => {
-    for (const ch of s) useEditor.getState().editBanner((t) => t + ch);
+    for (const ch of s) useEditor.getState().editBanner((t, c) => typedAt(t, c, ch));
   };
   const said = (): string | undefined => useEditor.getState().selection?.banner?.text;
 
@@ -374,7 +377,7 @@ describe('typing into a banner', () => {
     reset();
     useEditor.getState().loadText('GO', 'x.txt');
     useEditor.getState().selectAt({ x: 0, y: 0 });
-    useEditor.getState().setFont('hash');
+    useEditor.getState().setFont('block');
     expect(useEditor.getState().typingBanner()).toBe(false);
 
     useEditor.getState().setTool('text');
@@ -393,7 +396,7 @@ describe('typing into a banner', () => {
 
   it('backspace takes a whole letter off, not a cell', () => {
     typing('HI', 'block');
-    useEditor.getState().editBanner((t) => [...t].slice(0, -1).join(''));
+    useEditor.getState().editBanner((t, c) => typedAt(t, c, 'Backspace'));
     expect(said()).toBe('H');
     const style = styleFor('block');
     if (style === undefined) return;
@@ -402,7 +405,7 @@ describe('typing into a banner', () => {
 
   it('backspaced down to nothing leaves nothing behind', () => {
     typing('A', 'block');
-    useEditor.getState().editBanner(() => '');
+    useEditor.getState().editBanner(() => ({ text: '', caret: 0 }));
     expect(useEditor.getState().text()).toBe('');
     expect(useEditor.getState().selection).toBeNull();
   });
@@ -420,7 +423,7 @@ describe('typing into a banner', () => {
 
   it('Enter drops a whole font-height, not one row', () => {
     typing('HI', 'block');
-    useEditor.getState().editBanner((t) => `${t}\n`);
+    useEditor.getState().editBanner((t, c) => typedAt(t, c, 'Enter'));
     type('OK');
 
     const rows = useEditor.getState().text().split('\n');
@@ -435,9 +438,9 @@ describe('typing into a banner', () => {
     // The selection covers one line; the rendering covers both. Clearing only
     // what was selected would leave the tail of the other line standing.
     typing('HI', 'block');
-    useEditor.getState().editBanner((t) => `${t}\n`);
+    useEditor.getState().editBanner((t, c) => typedAt(t, c, 'Enter'));
     type('OK');
-    useEditor.getState().editBanner((t) => [...t].slice(0, -1).join(''));
+    useEditor.getState().editBanner((t, c) => typedAt(t, c, 'Backspace'));
 
     const style = styleFor('block');
     if (style === undefined) return;

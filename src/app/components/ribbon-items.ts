@@ -304,7 +304,7 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
             { keys: ['jk'], label: 'The same, from the home row' },
             {
               keys: [],
-              label: 'Huge letters: type, Backspace, Enter, Space',
+              label: 'Huge letters: type · arrows move · Backspace, Delete, Enter',
             },
             stride,
           ],

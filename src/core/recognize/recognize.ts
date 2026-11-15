@@ -22,7 +22,7 @@ import { links } from '../grid/links.ts';
 import { ellipseRings } from '../stamp/ellipse.ts';
 import { trace } from './trace.ts';
 import { readBanner } from '../text/unbanner.ts';
-import { styleFor } from '../text/banner.ts';
+import { isArt, styleFor } from '../text/banner.ts';
 import { segmentize, type RunGraph } from './segmentize.ts';
 
 export type CandidateKind =
@@ -45,6 +45,13 @@ export interface BannerInfo {
   styleId: string;
   /** What the picture says, recovered by parsing it (`text/unbanner.ts`). */
   text: string;
+  /**
+   * The top-left of the rendering, which is where a re-render must go. Carried
+   * rather than taken from the bounds, because the first glyph may begin with a
+   * blank column — `G` does — and a bounds corner one cell off is how typing
+   * once lost the banner it was typing into.
+   */
+  origin: Cell;
 }
 
 export interface Candidate {
@@ -68,11 +75,25 @@ export interface Candidate {
 export function matchBanner(grid: Grid, x: number, y: number): Candidate | null {
   const found = readBanner(grid, { x, y });
   if (found === null) return null;
+
+  // A single letter in a font drawn from line strokes is often a small closed
+  // shape as well — an `O` in `Lines` is a rounded 3×5 box, and a rounded 3×5
+  // box is far more often a box. One letter alone yields to the shape it also
+  // is; a word of them does not, two boxes a blank column apart being the rarer
+  // thing by far (B-FONT-09).
+  if (isArt(found.style) && [...found.text.trim()].length === 1) {
+    const { cells, truncated } = trace(grid, x, y);
+    const bounds = boundsOf(cells);
+    if (!truncated && bounds !== null && (matchBox(cells, bounds) || matchEllipse(cells, bounds))) {
+      return null;
+    }
+  }
+
   return {
     kind: 'banner',
     cells: found.cells,
     bounds: found.bounds,
-    banner: { styleId: found.style.id, text: found.text },
+    banner: { styleId: found.style.id, text: found.text, origin: found.origin },
   };
 }
 

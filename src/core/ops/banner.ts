@@ -31,15 +31,13 @@
  * covered *visibly* — you see what is about to go under before it does.
  */
 
-import { boundsOf, ck, type Cell, type CellKey } from '../geom/cell.ts';
+import { boundsOf, ck, unck, type Cell, type CellKey } from '../geom/cell.ts';
 import type { CellDiff, Grid } from '../grid/grid.ts';
 import { toText } from '../io/text.ts';
 import type { Candidate } from '../recognize/recognize.ts';
-import { renderBanner, type BannerStyle } from '../text/banner.ts';
+import { LEADING, renderBanner, type BannerStyle } from '../text/banner.ts';
+import { readBannerBlock } from '../text/unbanner.ts';
 import { refuse, type Plan } from './plan.ts';
-
-/** A blank row between the lines of a multi-line banner, so they read apart. */
-const LEADING = 1;
 
 /**
  * The selected text, line by line.
@@ -118,8 +116,70 @@ export function planBannerAt(
       kind: 'banner',
       cells: written,
       bounds: box,
-      banner: { styleId: style.id, text },
+      banner: { styleId: style.id, text, origin },
     },
+  };
+}
+
+/**
+ * The block of big text a banner selection stands for: every line of it, as
+ * drawn. A selection may be one word or one line of a taller block (B-FONT-07);
+ * the thing a font change or a conversion acts on is the whole block, so that
+ * is what is read. Falls back to what the selection itself knows.
+ */
+function blockOf(
+  grid: Grid,
+  selection: Candidate,
+): { text: string; origin: Cell; cells: ReadonlySet<CellKey> } | null {
+  const seed = [...selection.cells].map(unck)[0];
+  const block = seed === undefined ? null : readBannerBlock(grid, seed);
+  if (block !== null) return { text: block.text, origin: block.origin, cells: block.cells };
+  if (selection.banner === undefined) return null;
+  return {
+    text: selection.banner.text,
+    origin: selection.banner.origin,
+    cells: selection.cells,
+  };
+}
+
+/**
+ * The `Font` menu over a banner: the same words in another font (B-FONT-08).
+ *
+ * Re-rendered from what the picture *says*, not from the picture — choosing a
+ * font twice used to render the picture of the picture, five rows of tofu, back
+ * when nothing could read a banner. Now something can.
+ */
+export function planRefont(grid: Grid, selection: Candidate, style: BannerStyle): Plan {
+  const block = blockOf(grid, selection);
+  if (block === null || block.text.trim() === '') return refuse('Nothing to set in a font');
+  return planBannerAt(block.origin, block.text, style, block.cells);
+}
+
+/**
+ * `Regular`: the big text back as ordinary characters, where the big ones
+ * began (B-FONT-08). Lines of the block become lines of text, one row each.
+ */
+export function planUnbanner(grid: Grid, selection: Candidate): Plan {
+  const block = blockOf(grid, selection);
+  if (block === null || block.text.trim() === '') return refuse('Nothing to turn back into text');
+
+  const diff: CellDiff = new Map();
+  for (const key of block.cells) diff.set(key, null);
+
+  const written = new Set<CellKey>();
+  block.text.split('\n').forEach((line, dy) => {
+    [...line].forEach((chr, dx) => {
+      if (chr === ' ') return;
+      const key = ck(block.origin.x + dx, block.origin.y + dy);
+      diff.set(key, chr);
+      written.add(key);
+    });
+  });
+
+  const bounds = boundsOf(written);
+  return {
+    diff,
+    selection: bounds === null ? null : { kind: 'text', cells: written, bounds },
   };
 }
 

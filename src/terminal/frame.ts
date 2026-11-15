@@ -315,6 +315,18 @@ function drawCanvas(screen: Screen, view: Viewport, store: Store, preview: Previ
   const point = store.caret ?? store.cursor;
   const p = at(point.x, point.y);
   if (p === null) return null;
+
+  // Typing into big letters, the caret is as tall as they are (B-FONT-06). The
+  // terminal's cursor marks the top cell and blinks as it always does; the
+  // column beneath it is washed in the same colour down to the font's height,
+  // since a terminal has no taller cursor to lend.
+  const rows = store.caretRows();
+  if (rows > 1) {
+    for (let r = 0; r < rows; r++) {
+      const q = at(point.x, point.y + r);
+      if (q !== null) screen.wash(q.col, q.row, C.cursor);
+    }
+  }
   return { x: p.col, y: p.row, shape: store.caret !== null ? CURSOR_BAR : CURSOR_BLOCK };
 }
 

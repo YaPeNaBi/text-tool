@@ -202,7 +202,7 @@ src/
       astar.ts               the search: A* over (x, y, heading)
       cost.ts                the price list, and the obstacle map
     history/history.ts       undo/redo stack of diffs
-    text/banner.ts           one bitmap alphabet, rendered as several huge fonts
+    text/banner.ts           one bitmap alphabet rendered as five huge fonts, and Lines, drawn in strokes
     text/unbanner.ts         …and read back: the picture parsed into the word again
     io/text.ts               toText / fromText
 
@@ -548,7 +548,9 @@ these differently because a tty cannot report the gesture — see
 | `Shift`+arrow or `Shift`+`hjkl`, in the box tool | draw a box in one gesture — let go of `Shift` to keep it |
 | `Enter` | commit what the keyboard is drawing, through wherever the cursor has got to |
 | `t`, then type | writes at the keyboard cursor. Click a word first and `t` opens it at the character you clicked |
-| with **huge letters** selected: `t`, then type | adds letters in the same font · `Backspace` removes one whole letter · `Enter` drops a full font-height · `Space` leaves a space of the right width |
+| with **huge letters** selected: `t`, then type | a caret as tall as the letters, at the letter under the keyboard · arrows, `Home`, `End` move it · typing goes in where it is · `Backspace` and `Delete` take one whole letter · `Enter` drops a full font-height · click a letter to put the caret there |
+| `Enter` on huge letters | the word, then the line, then the whole block of lines |
+| right-click huge letters | `Font` → `Regular` turns them back into ordinary text, or any other font re-draws the words |
 | right-click a selection · `Ctrl`+`E` | actions: a box's columns, rows and style, a line's ends and style, **a run of text's font** |
 | in the font list | pointing at one draws it on the canvas before you choose — arrow keys, or the mouse. A row shows five at a time, with `‹ ›` where it carries on |
 | in that menu: `Enter` | open the highlighted group, or run the highlighted item · `Esc` backs out one level |
