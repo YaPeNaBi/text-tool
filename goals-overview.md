@@ -143,6 +143,7 @@ off.
 | Renderer | Draws visible cells straight from the grid, plus selection, handles, caret. | [canvas/renderer.ts](src/app/canvas/renderer.ts) |
 | Camera | Cell ↔ screen, zoom, runtime font metrics. | [canvas/camera.ts](src/app/canvas/camera.ts) |
 | Toolbar / status bar | Tool buttons, charset picker, file actions, readouts. | [components/](src/app/components) |
+| Light and dark | Light by default; a `Dark` checkbox (`F4` in the terminal) switches the canvas, the chrome and the terminal together, and the browser remembers it. | [canvas/palette.ts](src/app/canvas/palette.ts) · [styles.css](src/styles.css) |
 
 ### Tests
 

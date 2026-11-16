@@ -94,11 +94,21 @@ body {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  font-family: "Cascadia Mono", Consolas, monospace;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  text-transform: uppercase;
-  font-size: 11px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* No taller than a button, so the toolbar keeps its height. */
+.brand-logo {
+  display: block;
+  width: 26px;
+  height: 26px;
 }
 
 .toolbar .group {

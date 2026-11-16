@@ -24,6 +24,7 @@ straight from source, so nothing is compiled, bundled or watched.
 | `npm run tui` | A new, empty document |
 | `npm run tui -- diagram.txt` | Open that file — or start a new document under that name |
 | `npm run tui -- --no-band` | Start with the key band hidden, for five more rows of canvas |
+| `npm run tui -- --dark` | Start in the dark theme — light is the default, and `F4` switches |
 | `npm run tui -- --help` | The flags, without starting up |
 
 The `--` is npm's, not ours: it is how arguments get past npm to the program.
@@ -55,7 +56,7 @@ change mode — it is the same table the browser build draws as a ribbon.
 | `Ctrl+O` `Ctrl+S` `Alt+S` | Open · Save · Save as |
 | `Ctrl+Z` `Ctrl+Y` | Undo · redo |
 | `Ctrl+C` `Ctrl+V` | Copy · paste, at the cursor rather than at the mouse |
-| `F1` `F2` `F3` | The key band · the charset · whether connectors follow shapes |
+| `F1` `F2` `F3` `F4` | The key band · the charset · whether connectors follow shapes · light or dark |
 | **`Ctrl+X`** | **Leave** — it asks first if there is unsaved work |
 
 `Ctrl+C` is **copy**, not the interrupt: this build keeps the editor's keymap
@@ -92,7 +93,7 @@ npm run dev
 | Command | What it does |
 |---|---|
 | `npm run tui` | The terminal build — no build step ([above](#run-it-in-your-terminal)) |
-| `npm run dev` | Dev server with hot reload |
+| `npm run dev` | Dev server with hot reload. Light by default; the `Dark` box in the toolbar switches, and is remembered |
 | `npm run build` | Type-check, then a static bundle in `dist/` |
 | `npm test` | Unit tests (Vitest) |
 | `npm run lint` | ESLint, including the architectural boundary rules |
@@ -490,10 +491,10 @@ to be written down to get in.
 | `Ctrl`+`Enter` — everything joined up | `g` | A terminal sends a plain carriage return; the modifier is lost |
 | `Ctrl`+`Shift`+`S` / `Ctrl`+`Shift`+`C` | `Alt`+`S` / `Alt`+`C` | Shift on a control code is unrepresentable — `Ctrl`+`S` and `Ctrl`+`Shift`+`S` are one byte |
 
-Everything else is the same key, ending in the same store call. Three keys are the
+Everything else is the same key, ending in the same store call. Four keys are the
 shell's own and have no browser counterpart, because what they do is a dropdown or
 a checkbox there: `F1` the key band, `F2` the charset, `F3` whether connectors
-follow shapes. `Ctrl+X` leaves.
+follow shapes, `F4` light or dark. `Ctrl+X` leaves.
 
 ### What it cannot do
 

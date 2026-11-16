@@ -3789,3 +3789,77 @@ test.describe('save: the file, or a link (B-FILE-07, B-FILE-08)', () => {
     expect(await ed.text()).toBe(mine);
   });
 });
+
+test.describe('the brand', () => {
+  test('is char.tools, its logo follows the theme, and the favicon is the dark logo', async ({
+    page,
+  }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await expect(page).toHaveTitle('char.tools');
+    const brand = page.locator('.toolbar .brand');
+    await expect(brand).toHaveText('char.tools');
+
+    const logo = brand.locator('img');
+    const loaded = (): Promise<number> => logo.evaluate((img: HTMLImageElement) => img.naturalWidth);
+    const light = (await logo.getAttribute('src')) ?? '';
+    await expect.poll(loaded).toBeGreaterThan(0);
+
+    await page.getByLabel('Dark').check();
+    await expect(logo).not.toHaveAttribute('src', light);
+    await expect.poll(loaded).toBeGreaterThan(0);
+
+    // The dark tile's own gradient colour, so it is the dark one, not just an icon.
+    const href = (await page.locator('link[rel="icon"]').getAttribute('href')) ?? '';
+    const icon = await page.request.get(href);
+    expect(icon.ok()).toBe(true);
+    expect(await icon.text()).toContain('#19263D');
+  });
+});
+
+test.describe('light by default, dark on request (B-UI-18)', () => {
+  /** The colour most of the middle of the canvas is painted, as `r,g,b`: its page. */
+  const canvasPage = (page: Page): Promise<string> =>
+    page.evaluate(() => {
+      const c = document.querySelector<HTMLCanvasElement>('.canvas-wrap canvas');
+      const ctx = c?.getContext('2d');
+      if (c === null || c === undefined || ctx === null || ctx === undefined) return '';
+      // A patch rather than a pixel, so a grid line through it is outvoted.
+      const d = ctx.getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 24, 24).data;
+      const seen = new Map<string, number>();
+      for (let i = 0; i < d.length; i += 4) {
+        const k = `${String(d[i])},${String(d[i + 1])},${String(d[i + 2])}`;
+        seen.set(k, (seen.get(k) ?? 0) + 1);
+      }
+      return [...seen.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+    });
+  const bodyPage = (page: Page): Promise<string> =>
+    page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+  test('a fresh page is light; Dark switches page and canvas, and a reload remembers', async ({
+    page,
+  }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    expect(await bodyPage(page)).toBe('rgb(255, 255, 255)');
+    expect(await canvasPage(page)).toBe('255,255,255');
+    await expect(page.getByLabel('Dark')).not.toBeChecked();
+
+    await page.getByLabel('Dark').check();
+    await expect.poll(() => bodyPage(page)).toBe('rgb(15, 17, 21)');
+    await expect.poll(() => canvasPage(page)).toBe('15,17,21');
+
+    // Kept per browser, and applied before the app has even started.
+    await page.reload();
+    await expect(ed.canvas).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.dataset['theme'])).toBe('dark');
+    await expect(page.getByLabel('Dark')).toBeChecked();
+    await expect.poll(() => canvasPage(page)).toBe('15,17,21');
+
+    await page.getByLabel('Dark').uncheck();
+    await expect.poll(() => bodyPage(page)).toBe('rgb(255, 255, 255)');
+    await expect.poll(() => canvasPage(page)).toBe('255,255,255');
+  });
+});

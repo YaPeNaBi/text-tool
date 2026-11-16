@@ -539,7 +539,7 @@ function drawToolbar(screen: Screen, store: Store): void {
   const right = rightOf(store, Math.max(0, screen.width - keysNeed - 1));
   const rightAt = Math.max(0, screen.width - right.length);
 
-  const brand = ' ascii writer ';
+  const brand = ' char.tools ';
   const full = TOOLS.reduce((n, t) => n + t.key.length + t.label.length + 4, 0);
   const wide = brand.length + full < rightAt;
   let col = wide ? screen.text(0, 0, brand, C.dim, C.chrome) + 1 : 0;

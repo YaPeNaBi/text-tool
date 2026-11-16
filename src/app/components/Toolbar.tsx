@@ -3,6 +3,8 @@ import { CHARSETS } from '../../core/charset/charsets.ts';
 import { copyDocument, openDocument, useEditor } from '../state/store.ts';
 import { TOOLS } from '../tools.ts';
 import { NOTICE_MS } from '../canvas/palette.ts';
+import logoLight from '../../assets/logo-light.svg';
+import logoDark from '../../assets/logo-dark.svg';
 
 export function Toolbar(): React.JSX.Element {
   const tool = useEditor((s) => s.tool);
@@ -31,7 +33,13 @@ export function Toolbar(): React.JSX.Element {
 
   return (
     <div className="toolbar">
-      <span className="brand">ascii writer</span>
+      <span className="brand">
+        {/* The mark drawn for the theme it sits on: a light tile on the light
+            chrome, a dark one on the dark (B-UI-18). The name beside it says
+            what it is, so the image itself is decoration. */}
+        <img className="brand-logo" src={theme === 'dark' ? logoDark : logoLight} alt="" />
+        char.tools
+      </span>
 
       <div className="group">
         {TOOLS.map((t) => (
