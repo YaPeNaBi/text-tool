@@ -34,6 +34,8 @@ function withKept(initial: KeptDocument | null): { held: () => KeptDocument | nu
       writes++;
     },
     kept: () => held,
+    keepTheme: () => undefined,
+    keptTheme: () => null,
   });
   return { held: () => held, writes: () => writes };
 }

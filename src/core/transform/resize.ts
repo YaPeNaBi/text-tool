@@ -7,12 +7,13 @@
  */
 
 import type { CellKey, Rect } from '../geom/cell.ts';
-import { ck } from '../geom/cell.ts';
-import type { Charset } from '../charset/charsets.ts';
-import { cloneWithout, type CellDiff, type Grid } from '../grid/grid.ts';
+import { ck, unck } from '../geom/cell.ts';
+import { glyphFor, type Charset } from '../charset/charsets.ts';
+import { cloneWithout, neighbourMask, type CellDiff, type Grid } from '../grid/grid.ts';
+import { sharedCells } from '../derive/shared.ts';
 import { MIN_BOX, borderKeys, stampBox } from '../stamp/box.ts';
 import { drawnRing, stampEllipse } from '../stamp/ellipse.ts';
-import { styleOf } from '../derive/style.ts';
+import { styleAround, styleOf } from '../derive/style.ts';
 
 /** Which stamper owns this outline. Adding a shape means adding a case here. */
 export type ResizeKind = 'box' | 'ellipse';
@@ -112,6 +113,12 @@ export function resizeRect(r: Rect, id: HandleId, dx = 0, dy = 0): Rect {
  * The new outline is drawn in the set the old one was drawn in, not in `cs`,
  * which decides only when the old glyphs cannot (B-CS-07): a heavy box pulled
  * wider is a wider heavy box.
+ *
+ * Not every cell of the old outline is this shape's to lift. Where another
+ * closed shape shares a wall with it, or crosses it, those cells are the other
+ * shape's too: they stay, re-derived for whoever is left — a `┼` becomes the
+ * `│` it was before this outline crossed it, a shared `┬` the `┌` of the box
+ * beside it — exactly as a move leaves them (sticky §7.2, B-MAN-16).
  */
 export function resizeBoxDiff(
   grid: Grid,
@@ -123,11 +130,21 @@ export function resizeBoxDiff(
 ): CellDiff {
   const diff: CellDiff = new Map();
   const old = kind === 'ellipse' ? [...drawnRing(grid, from)] : borderKeys(from);
-  for (const key of old) diff.set(key, null);
+  const kept = sharedCells(grid, new Set(old));
+  const gone = old.filter((key) => !kept.has(key));
+  for (const key of gone) diff.set(key, null);
 
   // Stamp against a grid that no longer holds the old outline, otherwise the
   // new border would merge with the one it is replacing.
-  const without = cloneWithout(grid, [...old, ...lifted]);
+  const without = cloneWithout(grid, [...gone, ...lifted]);
+  for (const key of kept) {
+    const { x, y } = unck(key);
+    const mask = neighbourMask(without, x, y);
+    const glyph = mask === 0 ? null : glyphFor(mask, styleAround(without, x, y, mask, cs));
+    diff.set(key, glyph);
+    if (glyph === null) without.delete(key);
+    else without.set(key, glyph);
+  }
   const style = styleOf(grid, old, cs);
   const stamped = kind === 'ellipse'
     ? stampEllipse(without, to, style)

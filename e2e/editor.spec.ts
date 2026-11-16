@@ -3863,3 +3863,52 @@ test.describe('light by default, dark on request (B-UI-18)', () => {
     await expect.poll(() => canvasPage(page)).toBe('255,255,255');
   });
 });
+
+test.describe('overlapping boxes come apart (B-MAN-16)', () => {
+  test('dragging one box off another it crosses leaves both whole', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+
+    await ed.tool('Box');
+    await ed.drag([5, 0], [17, 5]);
+    await ed.drag([0, 3], [9, 7]);
+    expect(await ed.text()).toBe(
+      [
+        '     ┌───────────┐',
+        '     │           │',
+        '     │           │',
+        '┌────┼───┐       │',
+        '│    │   │       │',
+        '│    └───┼───────┘',
+        '│        │',
+        '└────────┘',
+      ].join('\n'),
+    );
+
+    await ed.tool('Select');
+    await ed.click(0, 4);
+    expect(await ed.selection()).toContain('Box 10×5');
+    await ed.drag([0, 4], [0, 11]);
+
+    // Neither box keeps a piece of the other, and neither loses one.
+    expect(await ed.text()).toBe(
+      [
+        '     ┌───────────┐',
+        '     │           │',
+        '     │           │',
+        '     │           │',
+        '     │           │',
+        '     └───────────┘',
+        '',
+        '',
+        '',
+        '',
+        '┌────────┐',
+        '│        │',
+        '│        │',
+        '│        │',
+        '└────────┘',
+      ].join('\n'),
+    );
+  });
+});

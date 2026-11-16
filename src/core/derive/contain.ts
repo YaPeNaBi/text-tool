@@ -15,6 +15,7 @@ import {
   ck,
   rectContains,
   rectStrictlyInside,
+  rectWithin,
   unck,
   type Cell,
   type CellKey,
@@ -109,6 +110,16 @@ export function componentsInside(grid: Grid, bounds: Rect): Candidate[] {
  * which rejects anything meeting the shape twice. So a divided box lost its
  * dividers the moment it moved: they were carried by nobody.
  *
+ * And one thing that looks like a divider and is not: **another closed shape
+ * crossing this one** (B-MAN-16). Draw two boxes overlapping and each holds a
+ * corner of the other — strokes that meet its walls and never leave its bounds,
+ * exactly as a divider does. They differ at the wall: a divider ends there, at a
+ * `┬` or a `├`, while the other box's stroke runs straight through a `┼` and
+ * carries on outside. Taking those strokes for dividers carried a copy of the
+ * other box's corner along with every move. So every crossing on the outline is
+ * asked what closed shapes run through it, and the strokes of any that reach
+ * past this shape's bounds are left out — they are that shape's.
+ *
  * Found by walking inward from the border and refusing to step outside the
  * bounds, which is what makes the answer immune to the awkward case: a box
  * with an arrow merged into its wall is one connected component reaching far
@@ -139,6 +150,82 @@ export function dividersInside(grid: Grid, shape: Candidate): Set<CellKey> {
       out.add(key);
       queue.push({ x, y });
     }
+  }
+  if (out.size === 0) return out;
+
+  const foreign = crossingShapes(grid, shape);
+  if (foreign.size === 0) return out;
+
+  // The other shape's strokes are its own — except where one of them crosses a
+  // divider of ours. That cell is both shapes' at once: it stays a divider, so
+  // the divider travels whole, and the move leaves the other shape its stroke
+  // through it (`sharedCells`). Asked against the dividers that are ours outright,
+  // so the other shape's wall cannot creep back in one cell at a time.
+  const ours = new Set([...out].filter((key) => !foreign.has(key)));
+  const crossed = [...out].filter((key) => {
+    if (!foreign.has(key)) return false;
+    const { x, y } = unck(key);
+    return DIRS.some((dir) => ours.has(ck(x + dir.dx, y + dir.dy)) && connected(grid, x, y, dir));
+  });
+  return new Set([...ours, ...crossed]);
+}
+
+/**
+ * More crossings than this on one outline and the rest are not asked about. A
+ * box overlapping another crosses it twice; a third box makes four.
+ */
+const MAX_CROSSING_PROBES = 12;
+
+/**
+ * The cells of every closed shape that crosses this one's outline and reaches
+ * past its bounds (B-MAN-16).
+ *
+ * Probed only at **crossings**: outline cells with an arm leading in, past the
+ * wall, and another leading out of the bounds. A table's dividers all end at a
+ * wall, so a table asks the recognizer nothing here. A closed reading lying
+ * wholly within the bounds is not another shape — the square where two
+ * overlapping boxes intersect is one, built from this shape's walls and the
+ * other's — and neither is the shape itself. Of what is left, the other shape
+ * is the reading that borrows the fewest of this outline's cells, as in
+ * `sharedCells`: rectangles pieced together from both shapes borrow a stretch of
+ * this wall, and the real one only its crossings.
+ */
+function crossingShapes(grid: Grid, shape: Candidate): Set<CellKey> {
+  const out = new Set<CellKey>();
+  const asked = new Set<string>();
+  let probes = 0;
+
+  for (const key of shape.cells) {
+    const { x, y } = unck(key);
+    let inward = false;
+    let outward = false;
+    for (const dir of DIRS) {
+      if (!connected(grid, x, y, dir)) continue;
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (!rectContains(shape.bounds, nx, ny)) outward = true;
+      else if (!shape.cells.has(ck(nx, ny))) inward = true;
+    }
+    if (!inward || !outward) continue;
+    if (probes++ >= MAX_CROSSING_PROBES) break;
+
+    let other: Candidate | null = null;
+    let fewest = Infinity;
+    for (const c of candidatesAt(grid, x, y)) {
+      if (!isClosed(c) || rectWithin(shape.bounds, c.bounds)) continue;
+      let borrowed = 0;
+      for (const k of c.cells) if (shape.cells.has(k)) borrowed++;
+      if (borrowed < fewest) {
+        fewest = borrowed;
+        other = c;
+      }
+    }
+    if (other === null) continue;
+
+    const id = `${other.kind}:${other.bounds.x},${other.bounds.y},${other.bounds.w},${other.bounds.h}`;
+    if (asked.has(id)) continue;
+    asked.add(id);
+    for (const k of other.cells) out.add(k);
   }
   return out;
 }

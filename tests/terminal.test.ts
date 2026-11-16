@@ -22,7 +22,7 @@ import { createDecoder, type Input, type Press } from '../src/terminal/keys.ts';
 import { createKeymap, SUBSTITUTES } from '../src/terminal/keymap.ts';
 import { follow, layoutOf, paint } from '../src/terminal/frame.ts';
 import { Screen } from '../src/terminal/ansi.ts';
-import { COLORS } from '../src/app/canvas/palette.ts';
+import { PALETTES } from '../src/app/canvas/palette.ts';
 import { useEditor } from '../src/app/state/store.ts';
 import { TOOLS } from '../src/app/tools.ts';
 import { groupsFor, type Item } from '../src/app/components/ribbon-items.ts';
@@ -523,7 +523,7 @@ describe('frame: the layout, and what it says', () => {
 
   it('draws the document where the document is', () => {
     useEditor.getState().loadText('┌──┐\n│  │\n└──┘', 'x.txt');
-    const screen = new Screen(40, 14, COLORS.bg);
+    const screen = new Screen(40, 14, PALETTES.light.bg);
     const layout = layoutOf(40, 14, false);
     paint({ screen, layout, drag: null, prompt: null });
 
@@ -533,7 +533,7 @@ describe('frame: the layout, and what it says', () => {
   });
 
   it('names the tool, the charset and the file on the top row', () => {
-    const screen = new Screen(80, 14, COLORS.bg);
+    const screen = new Screen(80, 14, PALETTES.light.bg);
     paint({ screen, layout: layoutOf(80, 14, false), drag: null, prompt: null });
     const top = screen.row(0);
     expect(top).toContain('Select');
@@ -542,7 +542,7 @@ describe('frame: the layout, and what it says', () => {
   });
 
   it('keeps every tool reachable when the window is too narrow for their names', () => {
-    const narrow = new Screen(46, 14, COLORS.bg);
+    const narrow = new Screen(46, 14, PALETTES.light.bg);
     paint({ screen: narrow, layout: layoutOf(46, 14, false), drag: null, prompt: null });
     const top = narrow.row(0);
     // The keys survive even where the labels cannot: the eraser and freehand are
@@ -554,14 +554,14 @@ describe('frame: the layout, and what it says', () => {
     useEditor.getState().loadText('┌──┐\n│  │\n└──┘', 'x.txt');
     useEditor.getState().selectAt({ x: 0, y: 0 });
 
-    const screen = new Screen(80, 14, COLORS.bg);
+    const screen = new Screen(80, 14, PALETTES.light.bg);
     const layout = layoutOf(80, 14, false);
     paint({ screen, layout, drag: null, prompt: null });
     expect(screen.row(layout.statusRow)).toContain('Box 4×3');
   });
 
   it('puts a bar on the caret and a block on the cursor (B-UI-10)', () => {
-    const screen = new Screen(80, 14, COLORS.bg);
+    const screen = new Screen(80, 14, PALETTES.light.bg);
     const layout = layoutOf(80, 14, false);
 
     const block = paint({ screen, layout, drag: null, prompt: null });
@@ -575,7 +575,7 @@ describe('frame: the layout, and what it says', () => {
   });
 
   it('shows the dialog over the status line, and puts the cursor in it', () => {
-    const screen = new Screen(80, 14, COLORS.bg);
+    const screen = new Screen(80, 14, PALETTES.light.bg);
     const layout = layoutOf(80, 14, false);
     const cursor = paint({
       screen,
@@ -590,7 +590,7 @@ describe('frame: the layout, and what it says', () => {
   });
 
   it('repeats only the rows that changed', () => {
-    const screen = new Screen(80, 14, COLORS.bg);
+    const screen = new Screen(80, 14, PALETTES.light.bg);
     const layout = layoutOf(80, 14, false);
     paint({ screen, layout, drag: null, prompt: null });
     const first = screen.frame(null);

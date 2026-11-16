@@ -78,6 +78,7 @@ off.
 | Sticky connectors | ✅ | Move a box and the arrows pointing at it follow, leaving from the side that faces where it went — including a line drawn *into* a border, grabbed from either end. A line joins the wall it reaches (`┬`, `┴`, `├`, `┤`); an arrow keeps its head clear. Every §1 and §2 case in the design doc is pinned by a test. | [connectors.ts](src/core/route/connectors.ts) |
 | Connectors on resize | ✅ | Dragging a handle re-routes them too, exactly as moving does. | [ops/resize.ts](src/core/ops/resize.ts) |
 | Refusing a damaging resize | ✅ | A box will not shrink over its own label or a child, and says so. | [ops/resize.ts](src/core/ops/resize.ts) |
+| Untangling overlapping boxes | ✅ | Drag or resize a box off another it crosses and both come out whole — no piece of one carried off by the other, no holes left where they crossed. | [derive/contain.ts](src/core/derive/contain.ts) · [derive/shared.ts](src/core/derive/shared.ts) |
 | Routing around obstacles | ✅ | A re-routed line goes around whatever is in the way, and says so when it cannot. The plain elbow is kept when it fits. | [route/astar.ts](src/core/route/astar.ts) · [route/cost.ts](src/core/route/cost.ts) |
 | Marquee select | ✅ | Drag from empty space. | [recognize.ts](src/core/recognize/recognize.ts) |
 | Multi-select | ✅ | `Shift`+click adds a shape, or removes it if already in. | [store.ts](src/app/state/store.ts) |

@@ -16,9 +16,10 @@ import {
   type CellKey,
   type Rect,
 } from '../geom/cell.ts';
-import { glyphFor, type Charset } from '../charset/charsets.ts';
+import { DIRS, glyphFor, type Charset } from '../charset/charsets.ts';
 import {
   applyDiff,
+  connected,
   maskOf,
   neighbourMask,
   type CellDiff,
@@ -264,13 +265,27 @@ function detach(
     if (!shared.has(key)) lift.set(key, null);
   }
 
-  // Drop the contents verbatim; the outline itself is redrawn below.
+  // Redrawn in the set it was drawn in, not the active one: moving a rounded
+  // box must not square its corners (B-CS-07).
+  const style = styleOf(grid, selection.cells, cs);
+
+  // Drop the contents verbatim; the outline itself is redrawn below. A carried
+  // cell the neighbour shares — a divider of ours crossed by another shape's
+  // wall — arrives with only the arms that lead to what came with it, so a `┼`
+  // left behind for the other shape is a `│` in ours (B-MAN-16).
   const carried: CellDiff = new Map();
   for (const key of cells) {
     if (selection.cells.has(key)) continue;
-    const ch = underHeads.get(key) ?? grid.get(key);
-    if (ch === undefined) continue;
     const { x, y } = unck(key);
+    let ch = underHeads.get(key) ?? grid.get(key);
+    if (shared.has(key)) {
+      let mask = 0;
+      for (const dir of DIRS) {
+        if (cells.has(ck(x + dir.dx, y + dir.dy)) && connected(grid, x, y, dir)) mask |= dir.d;
+      }
+      ch = mask === 0 ? undefined : glyphFor(mask, style);
+    }
+    if (ch === undefined) continue;
     carried.set(ck(x + dx, y + dy), ch);
   }
 
@@ -293,9 +308,6 @@ function detach(
   applyDiff(after, repair);
   applyDiff(after, carried);
 
-  // Redrawn in the set it was drawn in, not the active one: moving a rounded
-  // box must not square its corners (B-CS-07).
-  const style = styleOf(grid, selection.cells, cs);
   const outline = stampShape(after, rectShifted(selection.bounds, dx, dy), selection.kind, style);
   return merge(lift, repair, carried, outline);
 }

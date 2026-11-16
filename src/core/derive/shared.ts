@@ -15,9 +15,10 @@
  * glyph. A neighbour is a neighbour, not a wire and not a part.
  */
 
-import { ck, unck, type Cell, type CellKey } from '../geom/cell.ts';
+import { boundsOf, ck, rectWithin, unck, type Cell, type CellKey } from '../geom/cell.ts';
 import { DIRS } from '../charset/charsets.ts';
-import { maskOf, type Grid } from '../grid/grid.ts';
+import { connected, type Grid } from '../grid/grid.ts';
+import { links } from '../grid/links.ts';
 import { candidatesAt } from '../recognize/rank.ts';
 import { isClosed } from './contain.ts';
 
@@ -27,21 +28,26 @@ import { isClosed } from './contain.ts';
  */
 export const MAX_CONTACT_PROBES = 12;
 
-/** Cells of `moving` that sit against something staying put. */
+/**
+ * Cells of `moving` that are **joined** to something staying put — by an arm
+ * both sides agree on, or by a diagonal link (B-CONN-08).
+ *
+ * Joined, not merely beside. A neighbour that shares a cell with the mover runs
+ * on out of it, so the shared cell is always joined to the rest of the
+ * neighbour. A wall that only runs alongside — the stretch of one box's floor a
+ * crossing box passes over — is beside the other box's strokes and joined to
+ * none of them, and asking there finds only rectangles pieced together from
+ * both boxes, which then held that stretch of wall behind (B-MAN-16).
+ */
 export function contactCells(grid: Grid, moving: ReadonlySet<CellKey>): Cell[] {
   const out: Cell[] = [];
 
   for (const key of moving) {
     const { x, y } = unck(key);
-    for (const dir of DIRS) {
-      const nx = x + dir.dx;
-      const ny = y + dir.dy;
-      if (moving.has(ck(nx, ny))) continue;
-      if (maskOf(grid, nx, ny) === 0) continue;
-
-      out.push({ x, y });
-      break;
-    }
+    const joined =
+      DIRS.some((dir) => !moving.has(ck(x + dir.dx, y + dir.dy)) && connected(grid, x, y, dir)) ||
+      links(grid, x, y).some((c) => !moving.has(ck(c.x, c.y)));
+    if (joined) out.push({ x, y });
   }
   return out;
 }
@@ -50,10 +56,13 @@ export function contactCells(grid: Grid, moving: ReadonlySet<CellKey>): Cell[] {
  * The cells of `moving` that a **neighbouring closed shape** also relies on.
  *
  * Found by asking the recognizer what else passes through each contact point
- * and taking the smallest closed reading that is not the mover itself. Smallest
- * matters: two flush boxes also form one big rectangle, and re-deriving *that*
- * would keep almost the whole outline behind. The neighbour is the tightest
- * shape that shares cells and extends past them.
+ * and taking the closed reading that **borrows the fewest of the mover's cells**.
+ * Two flush boxes also form one big rectangle, and re-deriving *that* would keep
+ * almost the whole outline behind; where two boxes cross, pieces of both make
+ * rectangles nobody drew, each borrowing a stretch of the mover's wall as one of
+ * its sides. The real neighbour borrows only what it truly shares — the wall
+ * between flush boxes, the crossings between overlapping ones (B-MAN-16). Ties
+ * go to the smaller reading, which is the order they arrive in.
  *
  * Returns an empty set for the overwhelmingly common case of a shape that
  * touches nothing, which is also the fast path.
@@ -64,10 +73,20 @@ export function sharedCells(grid: Grid, moving: ReadonlySet<CellKey>): Set<CellK
   if (contact.length === 0) return out;
 
   const considered = new Set<string>();
+  const reach = boundsOf(moving);
 
   for (const cell of contact.slice(0, MAX_CONTACT_PROBES)) {
+    let neighbour: { cells: ReadonlySet<CellKey>; id: string } | null = null;
+    let fewest = Infinity;
+
     for (const candidate of candidatesAt(grid, cell.x, cell.y)) {
       if (!isClosed(candidate)) continue;
+      // A closed outline lying wholly within the mover's own bounds is not a
+      // neighbour. Where two boxes overlap, the square they intersect in is
+      // made of the mover's walls and the other box's — and being the
+      // smallest reading, it would otherwise be taken for the neighbour and
+      // keep half the mover's outline behind (B-MAN-16).
+      if (reach !== null && rectWithin(reach, candidate.bounds)) continue;
 
       let outside = 0;
       let inside = 0;
@@ -79,15 +98,19 @@ export function sharedCells(grid: Grid, moving: ReadonlySet<CellKey>): Set<CellK
       // nothing, so it is not a neighbour we are about to damage.
       if (outside === 0 || inside === 0) continue;
 
-      const id = `${candidate.bounds.x},${candidate.bounds.y},${candidate.bounds.w},${candidate.bounds.h}`;
-      if (!considered.has(id)) {
-        considered.add(id);
-        for (const key of candidate.cells) {
-          if (moving.has(key)) out.add(key);
-        }
+      if (inside < fewest) {
+        fewest = inside;
+        neighbour = {
+          cells: candidate.cells,
+          id: `${candidate.bounds.x},${candidate.bounds.y},${candidate.bounds.w},${candidate.bounds.h}`,
+        };
       }
-      // Candidates arrive smallest first, so the first match is the neighbour.
-      break;
+    }
+
+    if (neighbour === null || considered.has(neighbour.id)) continue;
+    considered.add(neighbour.id);
+    for (const key of neighbour.cells) {
+      if (moving.has(key)) out.add(key);
     }
   }
   return out;

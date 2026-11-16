@@ -75,6 +75,16 @@ export function rectStrictlyInside(outer: Rect, inner: Rect): boolean {
   );
 }
 
+/** True when `inner` lies within `outer`, edges allowed to coincide. */
+export function rectWithin(outer: Rect, inner: Rect): boolean {
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.w <= outer.x + outer.w &&
+    inner.y + inner.h <= outer.y + outer.h
+  );
+}
+
 export function rectShifted(r: Rect, dx: number, dy: number): Rect {
   return { x: r.x + dx, y: r.y + dy, w: r.w, h: r.h };
 }
