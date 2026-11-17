@@ -12,6 +12,7 @@
  */
 
 import { TOOLS, type ToolId } from '../tools.ts';
+import type { MessageKey, Translate } from '../i18n/index.ts';
 
 export interface Item {
   /** Keys, drawn as chips. Empty for a gesture that has no key. */
@@ -56,9 +57,24 @@ export interface Live {
   brush: number;
   objectMode: boolean;
   setTool: (tool: ToolId) => void;
+  /** Every label in the language the editor is in (B-UI-19). */
+  t: Translate;
 }
 
+/** Each tool's name, as a message (B-UI-19). */
+export const TOOL_KEYS: Readonly<Record<ToolId, MessageKey>> = {
+  select: 'tool.select',
+  box: 'tool.box',
+  circle: 'tool.circle',
+  line: 'tool.line',
+  arrow: 'tool.arrow',
+  text: 'tool.text',
+  erase: 'tool.erase',
+  freehand: 'tool.freehand',
+};
+
 export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
+  const { t } = live;
   /**
    * The same stride everywhere, so it is listed everywhere (B-KEY-19).
    *
@@ -69,15 +85,15 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
    */
   const stride: Item = {
     keys: ['Alt', '←→↑↓'],
-    label: 'Stride: ten across, five down — stops at a wall',
+    label: t('ribbon.stride'),
   };
 
   const typing: Group = {
-    name: 'Typing',
+    name: t('group.typing'),
     items: [
-      { keys: ['Insert'], label: 'Mode', state: live.insertMode ? 'Insert' : 'Overwrite' },
-      { keys: ['Enter'], label: 'New line, same column' },
-      { keys: ['Tab'], label: 'Shape ↔ text' },
+      { keys: ['Insert'], label: t('ribbon.typingMode'), state: t(live.insertMode ? 'ribbon.insert' : 'ribbon.overwrite') },
+      { keys: ['Enter'], label: t('ribbon.newLine') },
+      { keys: ['Tab'], label: t('ribbon.shapeText') },
     ],
   };
 
@@ -96,8 +112,8 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
    */
   const leave: Item = {
     keys: ['jk'],
-    label: 'Back to select · or Ctrl Ctrl',
-    terminal: { label: 'Back to select · or Esc' },
+    label: t('ribbon.leave'),
+    terminal: { label: t('ribbon.leave.terminal') },
   };
 
   /**
@@ -119,14 +135,14 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
    * the letters that leave select.
    */
   const modes: Group = {
-    name: 'Modes',
+    name: t('group.modes'),
     items: [
-      ...TOOLS.filter((t) => t.mode !== undefined).map((t) => ({
-        keys: [t.mode as string],
-        label: t.label,
+      ...TOOLS.filter((tl) => tl.mode !== undefined).map((tl) => ({
+        keys: [tl.mode as string],
+        label: t(TOOL_KEYS[tl.id]),
       })),
-      { keys: ['hjkl'], label: 'Walk' },
-      { keys: ['←→↑↓'], label: 'Walk' },
+      { keys: ['hjkl'], label: t('ribbon.walk') },
+      { keys: ['←→↑↓'], label: t('ribbon.walk') },
     ],
   };
 
@@ -135,55 +151,55 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
       return [
         modes,
         {
-          name: 'Select',
+          name: t('group.select'),
           items: [
-            { keys: [], label: 'Click · again widens' },
-            { keys: ['Shift', 'click'], label: 'Add all of it' },
-            { keys: ['Ctrl', 'click'], label: 'Add one piece' },
-            { keys: ['Ctrl', 'A'], label: 'Everything' },
-            { keys: ['Enter'], label: 'This shape · the whole one · a word, its paragraph' },
+            { keys: [], label: t('ribbon.clickWidens') },
+            { keys: ['Shift', 'click'], label: t('ribbon.addAll') },
+            { keys: ['Ctrl', 'click'], label: t('ribbon.addPiece') },
+            { keys: ['Ctrl', 'A'], label: t('ribbon.everything') },
+            { keys: ['Enter'], label: t('ribbon.enterLadder') },
             // A terminal sends a plain carriage return for Ctrl+Enter, so the
             // modifier never arrives and the binding needs a letter of its own.
-            { keys: ['Ctrl', 'Enter'], label: 'Everything joined to it', terminal: { keys: ['g'] } },
+            { keys: ['Ctrl', 'Enter'], label: t('ribbon.joined'), terminal: { keys: ['g'] } },
           ],
         },
         {
-          name: 'Move',
+          name: t('group.move'),
           items: [
-            { keys: ['Ctrl', '←→↑↓'], label: 'Move the selection, else jump' },
-            { keys: ['Ctrl', 'Alt'], label: 'Move it by a stride' },
-            { keys: ['Alt', '←→↑↓'], label: 'Nudge, or stride if nothing is' },
+            { keys: ['Ctrl', '←→↑↓'], label: t('ribbon.moveSelection') },
+            { keys: ['Ctrl', 'Alt'], label: t('ribbon.moveStride') },
+            { keys: ['Alt', '←→↑↓'], label: t('ribbon.nudge') },
           ],
         },
         {
-          name: 'Sweep',
+          name: t('group.sweep'),
           items: [
-            { keys: ['Shift', '←→↑↓'], label: 'A rectangle · grows the selection' },
-            { keys: ['Ctrl', 'Shift'], label: 'Out to the jump' },
-            { keys: ['Ctrl', 'Alt'], label: 'Reading order, nothing selected' },
+            { keys: ['Shift', '←→↑↓'], label: t('ribbon.rectangle') },
+            { keys: ['Ctrl', 'Shift'], label: t('ribbon.toJump') },
+            { keys: ['Ctrl', 'Alt'], label: t('ribbon.readingOrder') },
           ],
         },
         {
-          name: 'Objects',
+          name: t('group.objects'),
           items: [
             {
               keys: ['Shift', 'Shift'],
-              label: 'Select by object',
-              state: live.objectMode ? 'On' : 'Off',
+              label: t('ribbon.byObject'),
+              state: t(live.objectMode ? 'ribbon.on' : 'ribbon.off'),
               // A bare modifier sends nothing down a tty, so the double tap
               // cannot be seen there at all.
               terminal: { keys: ['o'] },
             },
-            { keys: ['Shift', '←→↑↓'], label: 'Grow by objects' },
+            { keys: ['Shift', '←→↑↓'], label: t('ribbon.growObjects') },
           ],
         },
         {
-          name: 'Act',
+          name: t('group.act'),
           items: [
             // Bare, since select does not write; `Ctrl`+`E` still works (B-UI-11).
-            { keys: ['e'], label: 'Actions · line ends, style, fonts' },
-            { keys: ['Ctrl', 'D'], label: 'Duplicate' },
-            { keys: ['Delete'], label: 'Erase' },
+            { keys: ['e'], label: t('ribbon.actions') },
+            { keys: ['Ctrl', 'D'], label: t('ribbon.duplicate') },
+            { keys: ['Delete'], label: t('ribbon.erase') },
           ],
         },
       ];
@@ -191,8 +207,8 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
     case 'box':
     case 'circle': {
       const draw: Item[] = [
-        { keys: [], label: 'Drag corner to corner' },
-        { keys: ['Space'], label: 'Or start at the cursor' },
+        { keys: [], label: t('ribbon.dragCorners') },
+        { keys: ['Space'], label: t('ribbon.startAtCursor') },
       ];
       // The one-gesture version is the box's alone (B-DRAW-15); a circle is
       // still Space and Enter, and listing a key that does nothing here would
@@ -200,28 +216,28 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
       if (tool === 'box') {
         draw.push({
           keys: ['Shift', '←→↑↓'],
-          label: 'Draw, and let go to keep it',
+          label: t('ribbon.drawLetGo'),
           // There is no key release down a tty, so the gesture keeps its start
           // and borrows Space's ending.
-          terminal: { label: 'Draw, then Enter to keep it' },
+          terminal: { label: t('ribbon.drawEnter') },
         });
       }
       draw.push(
-        { keys: ['←→↑↓'], label: 'Size it' },
+        { keys: ['←→↑↓'], label: t('ribbon.sizeIt') },
         // The home row reaches into the drawing modes too (B-KEY-22), so it is
         // listed where it works rather than only under select — a key that is
         // only documented in the mode you had to leave is one nobody finds.
-        { keys: ['hjkl'], label: 'Size it' },
-        { keys: ['Enter'], label: 'Commit' },
-        { keys: ['Esc'], label: 'Abandon · then back to select' },
+        { keys: ['hjkl'], label: t('ribbon.sizeIt') },
+        { keys: ['Enter'], label: t('ribbon.commit') },
+        { keys: ['Esc'], label: t('ribbon.abandon') },
         stride,
       );
 
       return [
-        { name: 'Draw', items: draw },
+        { name: t('group.draw'), items: draw },
         {
-          name: 'Joins',
-          items: [{ keys: [], label: 'Crossings become junctions' }, leave],
+          name: t('group.joins'),
+          items: [{ keys: [], label: t('ribbon.crossings') }, leave],
         },
       ];
     }
@@ -230,34 +246,34 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
     case 'arrow':
       return [
         {
-          name: 'Draw',
+          name: t('group.draw'),
           items: [
-            { keys: [], label: 'Click corner after corner' },
-            { keys: ['Space'], label: 'Or drop at the cursor' },
-            { keys: ['←→↑↓'], label: 'Aim the next corner' },
-            { keys: ['hjkl'], label: 'Aim the next corner' },
-            { keys: ['Enter'], label: 'Finish, through the cursor' },
-            { keys: ['Esc'], label: 'Abandon · then back to select' },
+            { keys: [], label: t('ribbon.clickCorners') },
+            { keys: ['Space'], label: t('ribbon.dropAtCursor') },
+            { keys: ['←→↑↓'], label: t('ribbon.aim') },
+            { keys: ['hjkl'], label: t('ribbon.aim') },
+            { keys: ['Enter'], label: t('ribbon.finish') },
+            { keys: ['Esc'], label: t('ribbon.abandon') },
             stride,
           ],
         },
         {
-          name: 'Shape',
+          name: t('group.shape'),
           items: [
-            { keys: ['Alt'], label: 'Flip the elbow, dragging' },
-            { keys: [], label: 'Drag for a single segment' },
+            { keys: ['Alt'], label: t('ribbon.flipElbow') },
+            { keys: [], label: t('ribbon.singleSegment') },
             leave,
           ],
         },
         {
-          name: 'Freehand',
+          name: t('group.freehand'),
           items: [
             {
               keys: ['Ctrl', 'Q'],
-              label: 'Draw by hand',
+              label: t('ribbon.drawByHand'),
               run: () => { live.setTool('freehand'); },
             },
-            { keys: [], label: 'The stroke becomes line glyphs' },
+            { keys: [], label: t('ribbon.strokeGlyphs') },
           ],
         },
       ];
@@ -265,26 +281,26 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
     case 'freehand':
       return [
         {
-          name: 'Draw',
+          name: t('group.draw'),
           items: [
-            { keys: [], label: 'Drag, and it follows the pointer' },
-            { keys: [], label: 'Every cell it crosses is drawn' },
-            { keys: [], label: 'Crossings become junctions' },
+            { keys: [], label: t('ribbon.followsPointer') },
+            { keys: [], label: t('ribbon.everyCell') },
+            { keys: [], label: t('ribbon.crossings') },
           ],
         },
         {
-          name: 'Back',
+          name: t('group.back'),
           items: [
             {
               keys: ['Ctrl', '4'],
-              label: 'Straight lines',
+              label: t('ribbon.straightLines'),
               // Control codes only cover the letters, so the numbered row is
               // reached by its bare digit here — which select does not need back,
               // and no drawing mode was using.
               terminal: { keys: ['4'] },
               run: () => { live.setTool('line'); },
             },
-            { keys: ['Ctrl', 'Z'], label: 'Undo the whole stroke' },
+            { keys: ['Ctrl', 'Z'], label: t('ribbon.undoStroke') },
             leave,
           ],
         },
@@ -293,18 +309,18 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
     case 'text':
       return [
         {
-          name: 'Caret',
+          name: t('group.caret'),
           items: [
-            { keys: [], label: 'It starts where the keyboard was' },
-            { keys: ['←→↑↓'], label: 'Walk it' },
+            { keys: [], label: t('ribbon.caretStarts') },
+            { keys: ['←→↑↓'], label: t('ribbon.walkIt') },
             // One press, not two: the caret and the mode are the same fact
             // now, so leaving the writing is leaving the mode (B-KEY-21).
-            { keys: ['Esc'], label: 'Done · back to select' },
+            { keys: ['Esc'], label: t('ribbon.done') },
             // Under text too, where the `j` and `k` are never written (B-KEY-23).
-            { keys: ['jk'], label: 'The same, from the home row' },
+            { keys: ['jk'], label: t('ribbon.homeRow') },
             {
               keys: [],
-              label: 'Huge letters: type · arrows move · Backspace, Delete, Enter',
+              label: t('ribbon.hugeLetters'),
             },
             stride,
           ],
@@ -315,16 +331,16 @@ export function groupsFor(tool: ToolId, live: Live): readonly Group[] {
     case 'erase':
       return [
         {
-          name: 'Brush',
+          name: t('group.brush'),
           items: [
-            { keys: [], label: 'Drag to rub out' },
-            { keys: ['[', ']'], label: 'Size', state: `${live.brush}×${live.brush}` },
+            { keys: [], label: t('ribbon.rubOut') },
+            { keys: ['[', ']'], label: t('ribbon.size'), state: `${live.brush}×${live.brush}` },
             stride,
           ],
         },
         {
-          name: 'Repair',
-          items: [{ keys: [], label: 'Stray arms are mended' }, leave],
+          name: t('group.repair'),
+          items: [{ keys: [], label: t('ribbon.mended') }, leave],
         },
       ];
   }

@@ -36,11 +36,12 @@ function withKeptTheme(initial: string | null): { held: () => string | null; wri
     onMenuCommand: () => undefined,
     keep: () => undefined,
     kept: () => null,
-    keepTheme: (theme) => {
-      held = theme;
+    keepSetting: (name, value) => {
+      if (name !== 'theme') return;
+      held = value;
       writes++;
     },
-    keptTheme: () => held,
+    keptSetting: (name) => (name === 'theme' ? held : null),
   });
   return { held: () => held, writes: () => writes };
 }

@@ -129,8 +129,8 @@ export function createDesktopAdapter(): PlatformAdapter {
     // is the same loss as a tab closed mid-drawing.
     keep: (doc) => web.keep(doc),
     kept: () => web.kept(),
-    keepTheme: (theme) => web.keepTheme(theme),
-    keptTheme: () => web.keptTheme(),
+    keepSetting: (name, value) => web.keepSetting(name, value),
+    keptSetting: (name) => web.keptSetting(name),
 
     async recentFiles() {
       try {

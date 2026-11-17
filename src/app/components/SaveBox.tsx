@@ -16,8 +16,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { platform } from '../../platform/index.ts';
 import { copyLink, documentLink, saveDocument, useEditor } from '../state/store.ts';
+import { useT } from '../i18n/useT.ts';
 
 export function SaveBox(): React.JSX.Element | null {
+  const t = useT();
   const open = useEditor((s) => s.saveOpen);
   const fileName = useEditor((s) => s.fileName);
   const revision = useEditor((s) => s.revision);
@@ -70,12 +72,12 @@ export function SaveBox(): React.JSX.Element | null {
       <div
         className="save-box"
         role="dialog"
-        aria-label="Save"
+        aria-label={t('save.title')}
         ref={box}
         onPointerDown={(ev) => ev.stopPropagation()}
         onKeyDown={onKeyDown}
       >
-        <h2>Save</h2>
+        <h2>{t('save.title')}</h2>
         <button
           ref={first}
           onClick={() => {
@@ -83,18 +85,28 @@ export function SaveBox(): React.JSX.Element | null {
             void saveDocument(false);
           }}
         >
-          {inPlace ? `Save to ${fileName}` : `Download ${fileName}`}
-          <span className="what">A plain text file — what you see is what it holds</span>
+          {t(inPlace ? 'save.to' : 'save.download', { name: fileName })}
+          <span className="what">{t('save.file')}</span>
         </button>
         <button onClick={() => void copyLink()}>
-          Copy link
+          {t('save.link')}
           <span className="what">
-            The whole drawing, in the address
-            {linkLength === null ? '' : ` · ${String(linkLength)} characters`}
+            {t('save.linkWhat')}
+            {linkLength === null ? '' : ` · ${t('save.linkLength', { count: linkLength })}`}
           </span>
         </button>
         <div className="esc">
-          <kbd>Esc</kbd> closes
+          {/* The key goes where the language puts it: "Esc closes", "按 Esc 关闭". */}
+          {(() => {
+            const [before = '', after = ''] = t('save.closes', { key: '\u0000' }).split('\u0000');
+            return (
+              <>
+                {before}
+                <kbd>{t('key.esc')}</kbd>
+                {after}
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>

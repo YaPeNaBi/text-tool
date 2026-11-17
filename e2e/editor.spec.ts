@@ -3912,3 +3912,35 @@ test.describe('overlapping boxes come apart (B-MAN-16)', () => {
     );
   });
 });
+
+test.describe('the interface in another language (B-UI-19)', () => {
+  test('the picker switches the interface, marks the page, and is remembered', async ({ page }) => {
+    const ed = new Editor(page);
+    await ed.goto();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+    await page.getByLabel('Language').selectOption('fr');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+    await expect(page.getByRole('button', { name: /^Annuler/ })).toBeVisible();
+    await expect(page.locator('.statusbar')).toContainText('aucune sélection');
+    await expect(page.locator('.ribbon')).toContainText('Ajouter le tout');
+
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+    await expect(page.getByLabel('Langue')).toHaveValue('fr');
+
+    await page.getByLabel('Langue').selectOption('en');
+    await expect(page.getByRole('button', { name: /^Undo/ })).toBeVisible();
+  });
+
+  test.describe('a browser that prefers German', () => {
+    test.use({ locale: 'de-DE' });
+
+    test('gets German without being asked', async ({ page }) => {
+      await page.goto('/');
+      await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+      await expect(page.getByRole('button', { name: /^Rückgängig/ })).toBeVisible();
+      await expect(page.getByLabel('Sprache')).toHaveValue('de');
+    });
+  });
+});

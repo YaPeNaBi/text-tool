@@ -72,13 +72,16 @@ export interface PlatformAdapter {
   kept(): KeptDocument | null;
 
   /**
-   * Hold on to the colour theme between runs (B-UI-18). A string rather than
-   * the app's own type, because this layer stores and does not interpret: the
-   * store checks what comes back, and anything it does not recognise is
-   * treated as nothing kept.
+   * Hold on to a setting between runs: the colour theme (B-UI-18), the
+   * interface's language (B-UI-19). A string rather than the app's own types,
+   * because this layer stores and does not interpret: the store checks what
+   * comes back, and anything it does not recognise is treated as nothing kept.
    */
-  keepTheme(theme: string): void;
-  keptTheme(): string | null;
+  keepSetting(name: SettingName, value: string): void;
+  keptSetting(name: SettingName): string | null;
 }
+
+/** The settings a platform may keep between runs. */
+export type SettingName = 'theme' | 'language';
 
 export const DEFAULT_FILENAME = 'diagram.txt';

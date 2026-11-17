@@ -26,6 +26,7 @@ import { PALETTES } from '../src/app/canvas/palette.ts';
 import { useEditor } from '../src/app/state/store.ts';
 import { TOOLS } from '../src/app/tools.ts';
 import { groupsFor, type Item } from '../src/app/components/ribbon-items.ts';
+import { translator } from '../src/app/i18n/index.ts';
 
 const ESC = '\x1b';
 
@@ -463,6 +464,7 @@ describe('keymap: the substitutes a tty forces', () => {
         brush: 1,
         objectMode: false,
         setTool: () => undefined,
+        t: translator('en'),
       });
       for (const g of groups) {
         for (const item of g.items) if (item.terminal !== undefined) overrides.push(item);

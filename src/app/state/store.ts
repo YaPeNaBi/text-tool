@@ -100,6 +100,17 @@ import {
   type OriginMode,
 } from '../canvas/camera.ts';
 import { DEFAULT_THEME, isTheme, type Theme } from '../canvas/palette.ts';
+import {
+  isLoaded,
+  loadLanguage,
+  translate,
+  translator,
+  type MessageKey,
+  type Params,
+  type Translate,
+} from '../i18n/index.ts';
+import { DEFAULT_LANG, isLang, matchLanguage, type Lang } from '../i18n/languages.ts';
+import { charsetLabel, fontLabel, fontTitle, localizePlanText } from '../i18n/core.ts';
 import type { ToolId } from '../tools.ts';
 
 /**
@@ -283,13 +294,15 @@ function restyled(grid: Grid, selection: Candidate): Set<CellKey> {
  * box, so the two cannot drift. Each item previews: a list of pack names says
  * nothing about what `Heavy` looks like on this shape (B-UI-16a).
  */
-function styleGroup(what: 'line' | 'box'): MenuGroup {
+function styleGroup(what: 'line' | 'box', t: Translate): MenuGroup {
   return {
-    label: 'Style',
-    title: `Redraw this ${what} in another character set`,
+    label: t('menu.style'),
+    title: t(what === 'box' ? 'menu.style.box' : 'menu.style.line'),
     items: Object.values(CHARSETS).map((cs) => ({
-      label: cs.label,
-      title: `Draw this ${what} with ${cs.label} characters`,
+      label: charsetLabel(cs.id, cs.label, t),
+      title: t(what === 'box' ? 'menu.style.item.box' : 'menu.style.item.line', {
+        charset: charsetLabel(cs.id, cs.label, t),
+      }),
       run: (s: EditorState) => { s.restyleSelection(cs.id); },
       preview: (s: EditorState) =>
         s.selection === null ? null : convertCharset(s.grid, cs, restyled(s.grid, s.selection)),
@@ -312,6 +325,7 @@ function styleGroup(what: 'line' | 'box'): MenuGroup {
 export function menuFor(state: EditorState): readonly MenuNode[] {
   const { grid, selection } = state;
   if (selection === null) return [];
+  const t = translator(state.lang);
 
   // Text has one thing worth asking about, and it is the one thing a list of
   // words cannot convey — so every item here carries a `preview` (B-UI-16a).
@@ -320,8 +334,8 @@ export function menuFor(state: EditorState): readonly MenuNode[] {
   if (selection.kind === 'text' || selection.kind === 'banner') {
     const big = selection.kind === 'banner';
     const fonts: MenuNode[] = BANNER_STYLES.map((style) => ({
-      label: style.label,
-      title: style.title,
+      label: fontLabel(style.id, style.label, t),
+      title: fontTitle(style.id, style.title, t),
       run: (s: EditorState) => { s.setFont(style.id); },
       preview: (s: EditorState) => {
         if (s.selection === null) return null;
@@ -334,8 +348,8 @@ export function menuFor(state: EditorState): readonly MenuNode[] {
     }));
     if (big) {
       fonts.unshift({
-        label: 'Regular',
-        title: 'Back to ordinary characters',
+        label: t('menu.regular'),
+        title: t('menu.regular.title'),
         run: (s: EditorState) => { s.unsetFont(); },
         preview: (s: EditorState) =>
           s.selection === null ? null : planUnbanner(s.grid, s.selection).diff,
@@ -343,8 +357,8 @@ export function menuFor(state: EditorState): readonly MenuNode[] {
     }
     return [
       {
-        label: 'Font',
-        title: big ? 'Set these letters in another font, or back to text' : 'Set this text in huge letters',
+        label: t('menu.font'),
+        title: t(big ? 'menu.font.big' : 'menu.font.text'),
         items: fonts,
       },
     ];
@@ -352,10 +366,10 @@ export function menuFor(state: EditorState): readonly MenuNode[] {
 
   if (canDivide(selection)) {
     return [
-      { label: 'Add column', title: 'Widen the box by one column', run: (s) => s.addColumn() },
-      { label: 'Add row', title: 'Deepen the box by one row', run: (s) => s.addRow() },
+      { label: t('menu.addColumn'), title: t('menu.addColumn.title'), run: (s) => s.addColumn() },
+      { label: t('menu.addRow'), title: t('menu.addRow.title'), run: (s) => s.addRow() },
       // Last, so the two lattice items keep the places the hand knows (B-UI-13).
-      styleGroup('box'),
+      styleGroup('box', t),
     ];
   }
 
@@ -363,16 +377,16 @@ export function menuFor(state: EditorState): readonly MenuNode[] {
   if (ends === null) return [];
 
   return [
-    styleGroup('line'),
+    styleGroup('line', t),
     {
-      label: 'Line end',
-      title: 'What sits at each end of the line',
+      label: t('menu.lineEnd'),
+      title: t('menu.lineEnd.title'),
       items: ends.map((end, which) => ({
-        label: `End ${String(which + 1)}`,
-        title: `The end at ${String(end.at.x)}, ${String(end.at.y)}`,
+        label: t('menu.end', { n: which + 1 }),
+        title: t('menu.end.title', { x: end.at.x, y: end.at.y }),
         items: END_KINDS.map((kind) => ({
-          label: kind.label,
-          title: kind.title,
+          label: t(kind.label),
+          title: t(kind.title),
           run: (s: EditorState) => { s.setLineEnd(which, kind.id); },
           hint: (s: EditorState) =>
             s.selection === null ? null : endCells(s.selection.cells, end.at),
@@ -399,14 +413,30 @@ export function menuFor(state: EditorState): readonly MenuNode[] {
  * entry, but `<` and `>` are already the ASCII arrowheads, so the glyph it
  * should use is a decision about what lands in the saved `.txt`.
  */
-const END_KINDS: ReadonlyArray<{ id: LineEnd; label: string; title: string }> = [
-  { id: 'normal', label: 'Normal', title: 'A plain end, with nothing on it' },
-  { id: 'arrow', label: 'Arrow', title: 'An arrowhead pointing away from the line' },
-  { id: 'one', label: '1 to 1', title: 'A bar across the line: exactly one' },
+const END_KINDS: ReadonlyArray<{ id: LineEnd; label: MessageKey; title: MessageKey }> = [
+  { id: 'normal', label: 'menu.end.normal', title: 'menu.end.normal.title' },
+  { id: 'arrow', label: 'menu.end.arrow', title: 'menu.end.arrow.title' },
+  { id: 'one', label: 'menu.end.one', title: 'menu.end.one.title' },
 ];
+
+/**
+ * A message in the language the editor is in, for the notices the store sets
+ * itself (B-UI-19). Read at the moment of saying it, so a notice is in the
+ * language that was showing when it appeared.
+ */
+function say(key: MessageKey, params?: Params): string {
+  return translate(useEditor.getState().lang, key, params);
+}
 
 /** Bumped whenever a typing run should start a fresh undo entry. */
 let typingRun = 0;
+
+/**
+ * The language last asked for (B-UI-19). A catalog arrives a moment after it is
+ * chosen; two chosen in quick succession may arrive in either order, and only
+ * the one asked for last may take effect.
+ */
+let wantedLang: Lang = DEFAULT_LANG;
 
 /**
  * What the keys are editing while a banner is selected (B-FONT-06): the whole
@@ -494,6 +524,8 @@ export interface EditorState {
   charsetId: string;
   /** Light or dark (B-UI-18). Session state, kept by the platform where it can. */
   theme: Theme;
+  /** The interface's language (B-UI-19). Session state, kept like the theme. */
+  lang: Lang;
   selection: Candidate | null;
   drill: Drill | null;
   camera: Camera;
@@ -605,6 +637,7 @@ export interface EditorState {
   toggleInsertMode: () => void;
   toggleSticky: () => void;
   setTheme: (theme: Theme) => void;
+  setLang: (lang: Lang) => void;
   toggleTheme: () => void;
   setNotice: (text: string | null) => void;
   openSave: () => void;
@@ -755,6 +788,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   tool: 'select',
   charsetId: 'unicode', // B-CS-01
   theme: DEFAULT_THEME, // B-UI-18
+  lang: DEFAULT_LANG, // B-UI-19
   selection: null,
   drill: null,
   camera: { ox: 0, oy: 0, zoom: 1 },
@@ -887,6 +921,22 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   setTheme: (theme) => set({ theme }),
 
+  setLang: (lang) => {
+    wantedLang = lang;
+    if (isLoaded(lang)) {
+      set({ lang });
+      return;
+    }
+    // Shown once its words are here; until then the interface stays in the
+    // language it is in, rather than flashing English in between.
+    void loadLanguage(lang).then(
+      () => {
+        if (wantedLang === lang) set({ lang });
+      },
+      () => undefined,
+    );
+  },
+
   toggleTheme: () => set({ theme: get().theme === 'dark' ? 'light' : 'dark' }),
 
   setNotice: (notice) => set({ notice }),
@@ -895,7 +945,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     // Nothing to download and nothing to link. Saying so beats opening a box
     // whose every choice would hand over an empty file.
     if (get().grid.size === 0) {
-      set({ notice: 'Nothing to save yet' });
+      set({ notice: say('notice.nothingToSave') });
       return;
     }
     set({ saveOpen: true, menuOpen: false });
@@ -1170,13 +1220,16 @@ export const useEditor = create<EditorState>((set, get) => ({
    * operation has to remember.
    */
   runPlan: (plan, opts) => {
+    // A planner speaks English (it is core, and pure); what it says is put
+    // into the interface's language on the way to the notice (B-UI-19).
+    const t = translator(get().lang);
     if (plan.refused !== undefined) {
-      set({ notice: plan.refused });
+      set({ notice: localizePlanText(plan.refused, t) });
       return;
     }
     if (plan.diff.size > 0) get().apply(plan.diff, opts);
     if (plan.selection !== undefined) set({ selection: plan.selection });
-    if (plan.note !== undefined) set({ notice: plan.note });
+    if (plan.note !== undefined) set({ notice: localizePlanText(plan.note, t) });
   },
 
   // Moving the keyboard's position with the pointer ends any writing that was
@@ -1916,7 +1969,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (diff.size === 0) return;
 
     apply(diff);
-    set({ selection: fromCells(new Set(diff.keys())), notice: `Pasted ${diff.size} cells` });
+    set({ selection: fromCells(new Set(diff.keys())), notice: say('notice.pasted', { count: diff.size }) });
   },
 
   /** Replace the document wholesale, as one undoable step. */
@@ -1927,7 +1980,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     for (const [key, ch] of pasteDiff(text, 0, 0)) diff.set(key, ch);
 
     apply(diff);
-    set({ fileName: name, dirty: false, notice: `Opened ${name}` });
+    set({ fileName: name, dirty: false, notice: say('notice.opened', { name }) });
   },
 
   undo: () => {
@@ -2112,13 +2165,49 @@ export async function openDocument(): Promise<void> {
  * someone else must not bring the sender's theme with it.
  */
 export function followTheme(show: (theme: Theme) => void): () => void {
-  const kept = platform().keptTheme();
+  const kept = platform().keptSetting('theme');
   if (isTheme(kept) && kept !== useEditor.getState().theme) useEditor.setState({ theme: kept });
   show(useEditor.getState().theme);
   return useEditor.subscribe((s, was) => {
     if (s.theme === was.theme) return;
     show(s.theme);
-    platform().keepTheme(s.theme);
+    platform().keepSetting('theme', s.theme);
+  });
+}
+
+/**
+ * The interface's language, from the last visit, the browser, or English, and
+ * from now on (B-UI-19).
+ *
+ * A language someone chose wins; otherwise the first of the browser's
+ * preferences the interface speaks; otherwise English. Only a choice is kept —
+ * a language merely detected is not written down, so someone whose browser
+ * changes language is followed rather than held to what it used to say.
+ * `show` gets every language as it takes effect: the web build sets it on
+ * `<html lang>`, so a screen reader pronounces the page in it.
+ *
+ * Resolves once the first language's words are loaded, so the page can wait
+ * for them and never paint in English first. A catalog that cannot be fetched
+ * leaves the interface in English. Resolves to the unsubscribe.
+ */
+export async function followLanguage(
+  preferred: readonly string[],
+  show: (lang: Lang) => void,
+): Promise<() => void> {
+  const kept = platform().keptSetting('language');
+  let lang = isLang(kept) ? kept : (matchLanguage(preferred) ?? DEFAULT_LANG);
+  try {
+    await loadLanguage(lang);
+  } catch {
+    lang = DEFAULT_LANG;
+  }
+  wantedLang = lang;
+  if (lang !== useEditor.getState().lang) useEditor.setState({ lang });
+  show(lang);
+  return useEditor.subscribe((s, was) => {
+    if (s.lang === was.lang) return;
+    show(s.lang);
+    platform().keepSetting('language', s.lang);
   });
 }
 
@@ -2171,7 +2260,7 @@ export async function saveDocument(as: boolean): Promise<void> {
     : await platform().saveFile(store.fileName, text);
 
   if (written === null) return;
-  useEditor.setState({ fileName: written, dirty: false, notice: `Saved ${written}` });
+  useEditor.setState({ fileName: written, dirty: false, notice: say('notice.saved', { name: written }) });
 }
 
 /** This page's address with the document in the fragment (B-FILE-08). */
@@ -2183,7 +2272,7 @@ export async function documentLink(): Promise<string> {
 export async function copyLink(): Promise<void> {
   const url = await documentLink();
   await platform().writeClipboard(url);
-  useEditor.setState({ saveOpen: false, notice: `Link copied · ${String(url.length)} characters` });
+  useEditor.setState({ saveOpen: false, notice: say('notice.linkCopied', { count: url.length }) });
 }
 
 /**
@@ -2206,7 +2295,7 @@ export async function openLink(): Promise<void> {
   try {
     text = await decodeDocument(payload);
   } catch {
-    useEditor.setState({ notice: 'The link could not be read' });
+    useEditor.setState({ notice: say('notice.linkUnreadable') });
     return;
   }
 
@@ -2216,7 +2305,7 @@ export async function openLink(): Promise<void> {
   // is put back after it.
   const kept = platform().kept();
   useEditor.getState().loadText(text, DEFAULT_FILENAME);
-  useEditor.setState({ dirty: true, notice: 'Opened the drawing in the link' });
+  useEditor.setState({ dirty: true, notice: say('notice.openedLink') });
   platform().keep(kept);
   window.history.replaceState(null, '', location.pathname + location.search);
 }
@@ -2226,11 +2315,11 @@ export async function copyDocument(selectionOnly: boolean): Promise<void> {
   const text = selectionOnly ? store.selectionText() : store.text();
   try {
     await platform().writeClipboard(text);
-    useEditor.setState({ notice: selectionOnly ? 'Copied selection' : 'Copied document' });
+    useEditor.setState({ notice: say(selectionOnly ? 'notice.copiedSelection' : 'notice.copiedDocument') });
   } catch {
     // A clipboard write needs a focused document and can simply be refused.
     // Saying so beats an unhandled rejection and a button that looks dead.
-    useEditor.setState({ notice: 'Clipboard write blocked by the browser' });
+    useEditor.setState({ notice: say('notice.writeBlocked') });
   }
 }
 
@@ -2265,7 +2354,7 @@ export async function pasteDocument(): Promise<void> {
   } catch {
     // Firefox and Safari refuse programmatic clipboard reads; say so rather
     // than failing silently, since Ctrl+V looking broken is worse than a note.
-    useEditor.setState({ notice: 'Clipboard read blocked — use the browser paste dialog' });
+    useEditor.setState({ notice: say('notice.readBlocked') });
   }
 }
 

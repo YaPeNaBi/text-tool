@@ -326,8 +326,8 @@ describe('paste anchoring (B-TXT-04)', () => {
       onMenuCommand: () => undefined,
       keep: () => undefined,
       kept: () => null,
-      keepTheme: () => undefined,
-      keptTheme: () => null,
+      keepSetting: () => undefined,
+      keptSetting: () => null,
     });
   };
 

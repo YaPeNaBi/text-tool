@@ -5,8 +5,12 @@ import { TOOLS } from '../tools.ts';
 import { NOTICE_MS } from '../canvas/palette.ts';
 import logoLight from '../../assets/logo-light.svg';
 import logoDark from '../../assets/logo-dark.svg';
+import { useT } from '../i18n/useT.ts';
+import { charsetLabel } from '../i18n/core.ts';
+import { TOOL_KEYS } from './ribbon-items.ts';
 
 export function Toolbar(): React.JSX.Element {
+  const t = useT();
   const tool = useEditor((s) => s.tool);
   const setTool = useEditor((s) => s.setTool);
   const charsetId = useEditor((s) => s.charsetId);
@@ -42,45 +46,45 @@ export function Toolbar(): React.JSX.Element {
       </span>
 
       <div className="group">
-        {TOOLS.map((t) => (
+        {TOOLS.map((tl) => (
           <button
-            key={t.id}
-            className={tool === t.id ? 'active' : ''}
-            onClick={() => setTool(t.id)}
-            title={`${t.label} (Ctrl+${t.key})`}
+            key={tl.id}
+            className={tool === tl.id ? 'active' : ''}
+            onClick={() => setTool(tl.id)}
+            title={t('tool.title', { tool: t(TOOL_KEYS[tl.id]), key: tl.key })}
           >
-            {t.label}
-            <span className="hint">{t.key}</span>
+            {t(TOOL_KEYS[tl.id])}
+            <span className="hint">{tl.key}</span>
           </button>
         ))}
       </div>
 
       <div className="group">
-        <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
-          Undo
+        <button onClick={undo} disabled={!canUndo} title={t('toolbar.undo.title')}>
+          {t('toolbar.undo')}
         </button>
-        <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">
-          Redo
+        <button onClick={redo} disabled={!canRedo} title={t('toolbar.redo.title')}>
+          {t('toolbar.redo')}
         </button>
       </div>
 
       <div className="group">
-        <label className="check" title="Lines follow the shape they touch when it moves">
+        <label className="check" title={t('toolbar.sticky.title')}>
           <input
             type="checkbox"
             checked={sticky}
             onChange={toggleSticky}
           />
-          Sticky
+          {t('toolbar.sticky')}
         </label>
-        <label className="check" title="Dark theme — light is the default, and the choice is remembered">
+        <label className="check" title={t('toolbar.dark.title')}>
           <input type="checkbox" checked={theme === 'dark'} onChange={toggleTheme} />
-          Dark
+          {t('toolbar.dark')}
         </label>
       </div>
 
       <div className="group">
-        <label htmlFor="charset">Charset</label>
+        <label htmlFor="charset">{t('toolbar.charset')}</label>
         <select
           id="charset"
           value={charsetId}
@@ -88,7 +92,7 @@ export function Toolbar(): React.JSX.Element {
         >
           {Object.values(CHARSETS).map((cs) => (
             <option key={cs.id} value={cs.id}>
-              {cs.label}
+              {charsetLabel(cs.id, cs.label, t)}
             </option>
           ))}
         </select>
@@ -96,20 +100,20 @@ export function Toolbar(): React.JSX.Element {
 
       <div className="group right">
         {notice !== null && <span className="notice">{notice}</span>}
-        <button onClick={() => void openDocument()} title="Open a .txt file (Ctrl+O)">
-          Open
+        <button onClick={() => void openDocument()} title={t('toolbar.open.title')}>
+          {t('toolbar.open')}
         </button>
-        <button onClick={openSave} title="Save: download the .txt, or copy a link (Ctrl+S)">
-          Save
+        <button onClick={openSave} title={t('toolbar.save.title')}>
+          {t('toolbar.save')}
         </button>
         <button
           onClick={() => void copyDocument(useEditor.getState().selection !== null)}
-          title="Copy selection, or the whole document (Ctrl+C)"
+          title={t('toolbar.copy.title')}
         >
-          Copy
+          {t('toolbar.copy')}
         </button>
-        <button onClick={clearAll} title="Erase everything">
-          Clear
+        <button onClick={clearAll} title={t('toolbar.clear.title')}>
+          {t('toolbar.clear')}
         </button>
       </div>
     </div>

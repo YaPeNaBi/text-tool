@@ -48,4 +48,5 @@ export {
   type LinePrompt,
   type OpenedFile,
   type PlatformAdapter,
+  type SettingName,
 } from './adapter.ts';

@@ -33,6 +33,7 @@ import { handlesOf } from '../core/transform/resize.ts';
 import { PALETTES, type Palette, type Theme } from '../app/canvas/palette.ts';
 import { previewOf, type Drag } from '../app/canvas/gesture.ts';
 import { groupsFor, type Group, type Item } from '../app/components/ribbon-items.ts';
+import { translator } from '../app/i18n/index.ts';
 import {
   isGroup,
   menuClear,
@@ -633,6 +634,7 @@ function drawBand(screen: Screen, layout: Layout, store: Store): void {
   for (let r = 0; r < layout.bandRows; r++) screen.band(layout.bandTop + r, C.chrome);
 
   const groups = groupsFor(store.tool, {
+    t: translator(store.lang),
     insertMode: store.insertMode,
     brush: store.brush,
     objectMode: store.objectMode,

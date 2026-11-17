@@ -31,6 +31,8 @@
  */
 
 import { useEditor } from '../state/store.ts';
+import { keyLabel } from '../i18n/index.ts';
+import { useT } from '../i18n/useT.ts';
 import { groupsFor } from './ribbon-items.ts';
 
 export function Ribbon(): React.JSX.Element {
@@ -39,8 +41,9 @@ export function Ribbon(): React.JSX.Element {
   const brush = useEditor((s) => s.brush);
   const objectMode = useEditor((s) => s.objectMode);
   const setTool = useEditor((s) => s.setTool);
+  const t = useT();
 
-  const groups = groupsFor(tool, { insertMode, brush, objectMode, setTool });
+  const groups = groupsFor(tool, { insertMode, brush, objectMode, setTool, t });
 
   return (
     <div className="ribbon">
@@ -55,7 +58,7 @@ export function Ribbon(): React.JSX.Element {
                 {item.keys.length > 0 && (
                   <span className="keys">
                     {item.keys.map((k, i) => (
-                      <kbd key={`${k}-${String(i)}`}>{k}</kbd>
+                      <kbd key={`${k}-${String(i)}`}>{keyLabel(k, t)}</kbd>
                     ))}
                   </span>
                 )}

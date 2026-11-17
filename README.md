@@ -93,7 +93,7 @@ npm run dev
 | Command | What it does |
 |---|---|
 | `npm run tui` | The terminal build — no build step ([above](#run-it-in-your-terminal)) |
-| `npm run dev` | Dev server with hot reload. Light by default; the `Dark` box in the toolbar switches, and is remembered |
+| `npm run dev` | Dev server with hot reload. Light by default; the `Dark` box in the toolbar switches, and is remembered. The interface follows the browser's language, with a picker in the status bar for eighteen of them |
 | `npm run build` | Type-check, then a static bundle in `dist/` |
 | `npm test` | Unit tests (Vitest) |
 | `npm run lint` | ESLint, including the architectural boundary rules |

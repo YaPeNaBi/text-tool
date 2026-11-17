@@ -349,6 +349,20 @@ button.active .hint {
   margin-left: auto;
 }
 
+/* The language picker (B-UI-19): as small as the readouts beside it, and
+   still plainly something to click. */
+.statusbar select.lang {
+  padding: 0 4px;
+  border-radius: 4px;
+  font: inherit;
+  color: var(--muted);
+  background: transparent;
+}
+
+.statusbar select.lang:hover {
+  color: var(--text);
+}
+
 /* Each opened group adds a row beneath the last, so the whole path stays on
    screen at once rather than the shape being covered by a sideways cascade. */
 .shape-menu {

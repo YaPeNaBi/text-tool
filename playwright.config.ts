@@ -17,6 +17,9 @@ export default defineConfig({
 
   use: {
     baseURL: 'http://localhost:5173',
+    // The interface follows the browser's language (B-UI-19). Pinned, so the
+    // suite reads English whatever the machine running it is set to.
+    locale: 'en-US',
     trace: 'on-first-retry',
     // The tests read the document back through the app's own copy command,
     // rather than reaching into its internals with a test-only hook.
